@@ -14,6 +14,10 @@
 //!   depth-bounded), state/transition coverage analysis.
 //! - [`fuzz`] — property-based falsification: seeded random traces and a
 //!   delta-debugging shrinker.
+//! - [`monitor`] — runtime verification: an incremental monitor that feeds
+//!   on a state stream and decides as early as the verdict is certain.
+//! - [`mutate`] *(std)* — mutation-based specification coverage: does the
+//!   formula suite actually catch a broken model?
 //! - [`concepts`] — the field guide: ten chapters of explanation, for
 //!   agent-facing tooling.
 //!
@@ -44,6 +48,8 @@ pub mod ltl;
 #[cfg(feature = "std")]
 pub mod model;
 pub mod monitor;
+#[cfg(feature = "std")]
+pub mod mutate;
 
 pub use concepts::{CONCEPTS, Concept, ConceptSection, concept_index, get_concept};
 pub use fuzz::{FalsifyOptions, FalsifyResult, Mulberry32, falsify, shrink_trace};
@@ -59,3 +65,5 @@ pub use model::{
     LassoCounterexample, ModelCheckOptions, ModelCheckResult, Verdict, analyze_coverage,
     model_check, parse_kripke, validate_kripke,
 };
+#[cfg(feature = "std")]
+pub use mutate::{MutantOutcome, MutantReport, Mutation, MutationReport, mutation_report, mutants};

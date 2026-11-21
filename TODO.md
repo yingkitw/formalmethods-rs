@@ -31,6 +31,10 @@
       `--no-default-features`; `model` and `fm` stay `std`-gated (Instant,
       HashMap, serde_json). Verified: `cargo build|test|clippy
       --no-default-features` green
+- [x] Mutation-based spec coverage — `mutate` module: `mutants()` enumerates
+      single-point faults (unlabel/relabel/detransition),
+      `mutation_report()` re-checks the formula suite exhaustively and
+      reports killed/survived/invalid + kill rate
 
 ## Next
 
@@ -40,7 +44,6 @@
 
 - Past-time LTL operators (`Y`, `O`, `H`, `S`) for log checking
 - CTL-style branching properties on Kripke structures
-- Mutation-based spec coverage: does the test suite catch a mutated model?
 - Trace generators with shrinking beyond delta-debugging (e.g. grammar-aware)
 - SAT/SMT-backed bounded checking for bigger models (e.g. via `varisat`)
 

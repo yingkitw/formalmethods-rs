@@ -18,6 +18,7 @@ This crate is the Rust port of the engine behind
 | `model` | Kripke structures, lasso-based model checker (exhaustive or depth-bounded), state/transition coverage analysis |
 | `fuzz` | Property-based falsification: seeded random traces (`Mulberry32`) + delta-debugging shrinker |
 | `monitor` | Runtime verification: incremental `Monitor` that consumes a stream of states and decides the moment the verdict is inevitable |
+| `mutate` | Mutation-based spec coverage: inject single faults into the model, re-check the formula suite, report killed vs. surviving mutants |
 | `concepts` | The field guide: ten chapters of explanation for agent-facing tooling |
 | `fm` (bin) | CLI front-end with one subcommand per capability, JSON in → JSON out |
 

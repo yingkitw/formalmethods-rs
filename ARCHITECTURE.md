@@ -3,15 +3,18 @@
 ```
 formalmethods (lib)
 ├── ltl        LTL syntax + evaluation        (src/ltl.rs)
-├── model      Kripke structures + checking    (src/model.rs)
+├── model      Kripke structures + checking    (src/model.rs)      [std]
 ├── fuzz       random falsification + shrink   (src/fuzz.rs)
+├── monitor    runtime monitoring (progression) (src/monitor.rs)
+├── mutate     mutation-based spec coverage     (src/mutate.rs)    [std]
 ├── concepts   the field guide (prose data)    (src/concepts.rs)
-└── fm (bin)   JSON CLI over the same engine   (src/bin/fm.rs)
+└── fm (bin)   JSON CLI over the same engine   (src/bin/fm.rs)     [std]
 ```
 
-`model` and `fuzz` depend on `ltl`; `concepts` is standalone data; `fm`
-depends on everything. Nothing else couples the modules — the engine is
-pure functions over plain data.
+`model`, `monitor`, and `mutate` depend on `ltl`; `mutate` depends on
+`model`; `concepts` is standalone data; `fm` depends on everything.
+Nothing else couples the modules — the engine is pure functions over
+plain data.
 
 ## `ltl`
 
@@ -40,6 +43,24 @@ pure functions over plain data.
   identical campaigns across both engines.
 - `falsify` — random-trace campaign; `shrink_trace` — greedy
   delta-debugging (drop positions, then atoms) while still violating.
+
+## `monitor`
+
+- `Monitor` — Bauer-style formula progression for streaming states:
+  `feed(state)` rewrites the residual obligation (residuals stay bare —
+  `P(G φ, s) = P(φ, s) ∧ G φ`, never X-wrapped), returns
+  `MonitorVerdict::{Satisfied, Violated, Pending}`; terminal verdicts are
+  sticky. `close()` must agree with `satisfies_trace` — enforced by a
+  test battery.
+
+## `mutate` *(std)*
+
+- `mutants` — enumerate single-point faults: `Unlabel` (drop an atom),
+  `Relabel` (add a declared atom), `Detransition` (drop an edge).
+- `mutation_report` — validate each mutant, re-run the formula suite
+  exhaustively; `Killed` on the first `violated`, `SurvivedIncomplete`
+  when a check was truncated (verdict honesty applies to mutants too),
+  kill rate over valid mutants.
 
 ## `concepts`
 
