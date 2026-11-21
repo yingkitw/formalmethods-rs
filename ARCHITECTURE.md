@@ -7,12 +7,14 @@ formalmethods (lib)
 ├── fuzz       random falsification + shrink   (src/fuzz.rs)
 ├── monitor    runtime monitoring (progression) (src/monitor.rs)
 ├── mutate     mutation-based spec coverage     (src/mutate.rs)    [std]
+├── ctl        branching-time CTL checking      (src/ctl.rs)       [std]
 ├── concepts   the field guide (prose data)    (src/concepts.rs)
 └── fm (bin)   JSON CLI over the same engine   (src/bin/fm.rs)     [std]
 ```
 
-`model`, `monitor`, and `mutate` depend on `ltl`; `mutate` depends on
-`model`; `concepts` is standalone data; `fm` depends on everything.
+`model`, `monitor`, and `mutate` depend on `ltl`; `mutate` and `ctl`
+depend on `model`; `concepts` is standalone data; `fm` depends on
+everything.
 Nothing else couples the modules — the engine is pure functions over
 plain data.
 
@@ -61,6 +63,18 @@ plain data.
   exhaustively; `Killed` on the first `violated`, `SurvivedIncomplete`
   when a check was truncated (verdict honesty applies to mutants too),
   kill rate over valid mutants.
+
+## `ctl` *(std)*
+
+- `CtlFormula` — branching-time AST: `EX`/`AX`/`EF`/`AF`/`EG`/`AG` and
+  `E[φ U ψ]` / `A[φ U ψ]`; `parse_ctl`/`print_ctl` mirror the LTL
+  grammar's connectives and conventions.
+- `ctl_check` — classic fixpoint labelling: `sat(φ)` computed as a bool
+  vector over states; `EU`/`AU` least fixpoints, `EG` greatest fixpoint,
+  `EF`/`AF`/`AG` derived. Dead ends get an implicit self-loop (stutter)
+  so `AX`/`AG` agree with the LTL checker's convention. Exact on finite
+  models — verdict is `holds` iff every initial state is in the set,
+  never `incomplete`.
 
 ## `concepts`
 

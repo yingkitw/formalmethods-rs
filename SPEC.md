@@ -114,6 +114,29 @@ formula into the residual obligation for the remaining suffix
 empty suffix under LTLf. `Monitor::close` agrees with `satisfies_trace` on
 the consumed log — same property, two execution modes (asserted by tests).
 
+## CTL grammar (`parse_ctl`)
+
+Branching-time sibling of the LTL grammar; same connectives and binding
+order, path quantifiers replace the temporal layer.
+
+```
+iff     := implies ("<->" implies)*
+implies := or ("->" implies)?
+or      := and ("||" and)*
+and     := quant ("&&" quant)*
+quant   := ("E" | "A") "[" iff "U" iff "]" | unary
+unary   := ("!" | "EX" | "AX" | "EF" | "AF" | "EG" | "AG") unary | atom
+atom    := "(" iff ")" | "true" | "false" | IDENT
+```
+
+- `E`, `A`, `U`, `EX`, `AX`, `EF`, `AF`, `EG`, `AG` are reserved.
+- `ctl_check` computes exact satisfaction sets by fixpoint labelling
+  (`EU`/`AU` least fixpoint, `EG` greatest). Verdict is `holds` iff every
+  initial state satisfies; CTL checking is always exact, so `incomplete`
+  never appears.
+- Dead ends stutter here too: a state with no out-edges has an implicit
+  self-loop, so `AX φ` at a dead end ≡ `φ` — never vacuous.
+
 ## Coverage (`analyze_coverage`)
 
 Given a model and test traces (state-id sequences), reports covered /
@@ -125,5 +148,9 @@ proves absence of testing, never presence of correctness.
 
 `fm <tool> '<json-args>'` → JSON result on stdout, exit non-zero on error.
 Pass `-` as the args to read the JSON object from stdin (pipe-friendly).
-Tools: `check_ltl`, `model_check`, `falsify_property`, `analyze_coverage`,
-`explain_concept` — same argument shapes as the sibling project's MCP tools.
+Tools: `check_ltl`, `model_check`, `ctl_check`, `mutation_report`,
+`falsify_property`, `analyze_coverage`, `explain_concept` — argument
+shapes mirror the sibling project's MCP tools. `ctl_check` takes
+`formula` in CTL syntax plus `model`, and reports `satisfying` /
+`violating_initials`; `mutation_report` takes `model` plus `formulas`
+(an array of LTL strings) and reports the mutant tally and kill rate.

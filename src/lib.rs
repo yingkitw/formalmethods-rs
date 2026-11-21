@@ -18,6 +18,9 @@
 //!   on a state stream and decides as early as the verdict is certain.
 //! - [`mutate`] *(std)* — mutation-based specification coverage: does the
 //!   formula suite actually catch a broken model?
+//! - [`ctl`] *(std)* — branching-time (CTL) checking: `EF`, `AG`,
+//!   `E[.. U ..]` and friends via fixpoint labelling — exact, never
+//!   `incomplete`.
 //! - [`concepts`] — the field guide: ten chapters of explanation, for
 //!   agent-facing tooling.
 //!
@@ -43,6 +46,8 @@
 extern crate alloc;
 
 pub mod concepts;
+#[cfg(feature = "std")]
+pub mod ctl;
 pub mod fuzz;
 pub mod ltl;
 #[cfg(feature = "std")]
@@ -52,6 +57,8 @@ pub mod monitor;
 pub mod mutate;
 
 pub use concepts::{CONCEPTS, Concept, ConceptSection, concept_index, get_concept};
+#[cfg(feature = "std")]
+pub use ctl::{CtlFormula, CtlParseError, CtlResult, ctl_check, parse_ctl, print_ctl};
 pub use fuzz::{FalsifyOptions, FalsifyResult, Mulberry32, falsify, shrink_trace};
 pub use ltl::{
     Formula, LtlParseError, PeriodicTrace, State, Trace, TruthRow, TruthTable, ast_size,

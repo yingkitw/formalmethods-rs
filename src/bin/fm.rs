@@ -6,6 +6,7 @@
 //! ```sh
 //! fm check_ltl        '{"formula":"G (request -> F response)","trace":[["request"],["response"]]}'
 //! fm model_check      '{"formula":"G (coin -> F dispense)","model":{...}}'
+//! fm ctl_check        '{"formula":"AG (coin -> AF vend)","model":{...}}'
 //! fm falsify_property '{"formula":"G (a -> F b)","atoms":["a","b"],"seed":42}'
 //! fm analyze_coverage '{"model":{...},"traces":[["idle","paid"]]}'
 //! fm explain_concept  '{"concept":"ltl"}'      # or no arg for the index
@@ -16,8 +17,9 @@
 use std::process::ExitCode;
 
 use formalmethods::{
-    analyze_coverage, falsify, get_concept, concept_index, model_check, parse_kripke, parse_ltl,
-    print_ltl, satisfies_trace, truth_table, FalsifyOptions, ModelCheckOptions, State, Trace,
+    analyze_coverage, ctl_check, falsify, get_concept, concept_index, model_check,
+    mutation_report, parse_ctl, parse_kripke, parse_ltl, print_ctl, print_ltl, satisfies_trace,
+    truth_table, FalsifyOptions, ModelCheckOptions, State, Trace,
 };
 use serde_json::{Value, json};
 
@@ -30,6 +32,8 @@ usage: fm <tool> [json-args]
 tools:
   check_ltl         evaluate an LTL formula on a finite trace (LTLf)
   model_check       model check a formula against a Kripke structure
+  ctl_check         check a CTL formula (EF/AG/E[.. U ..]/...) over the state graph
+  mutation_report   spec-coverage: mutate the model, re-check the formula suite
   falsify_property  random-trace falsification with shrinking
   analyze_coverage  state/transition coverage of test traces
   explain_concept   the field guide (no arg → index of topics)
@@ -157,6 +161,43 @@ fn main() -> ExitCode {
                 let obj = out.as_object_mut().unwrap();
                 obj.insert("semantics".into(), "infinite-run (lasso) — dead ends stutter".into());
                 obj.insert("formula".into(), print_ltl(&formula).into());
+                obj.insert("model_warnings".into(), json!(warnings));
+                Ok(out)
+            }
+            "ctl_check" => {
+                let formula = parse_ctl(
+                    req(&args, "formula")?
+                        .as_str()
+                        .ok_or("`formula` must be a string")?,
+                )
+                .map_err(|e| format!("CTL parse error: {e}"))?;
+                let (model, warnings) =
+                    parse_kripke(req(&args, "model")?).map_err(|e| format!("invalid model: {e}"))?;
+                let result =
+                    ctl_check(&model, &formula).map_err(|e| format!("invalid model: {e}"))?;
+                let mut out = serde_json::to_value(&result).map_err(|e| e.to_string())?;
+                let obj = out.as_object_mut().unwrap();
+                obj.insert("semantics".into(), "branching-time (CTL) — dead ends stutter".into());
+                obj.insert("formula".into(), print_ctl(&formula).into());
+                obj.insert("model_warnings".into(), json!(warnings));
+                Ok(out)
+            }
+            "mutation_report" => {
+                let (model, warnings) =
+                    parse_kripke(req(&args, "model")?).map_err(|e| format!("invalid model: {e}"))?;
+                let formulas = req(&args, "formulas")?
+                    .as_array()
+                    .ok_or("`formulas` must be an array of formula strings")?
+                    .iter()
+                    .map(|v| {
+                        v.as_str()
+                            .ok_or_else(|| "each formula must be a string".to_string())
+                            .and_then(|s| parse_ltl(s).map_err(|e| format!("`{s}`: {e}")))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let mut out =
+                    serde_json::to_value(mutation_report(&model, &formulas)).map_err(|e| e.to_string())?;
+                let obj = out.as_object_mut().unwrap();
                 obj.insert("model_warnings".into(), json!(warnings));
                 Ok(out)
             }

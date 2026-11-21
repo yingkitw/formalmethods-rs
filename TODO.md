@@ -35,6 +35,9 @@
       single-point faults (unlabel/relabel/detransition),
       `mutation_report()` re-checks the formula suite exhaustively and
       reports killed/survived/invalid + kill rate
+- [x] CTL branching properties — `ctl` module: `CtlFormula` AST, `parse_ctl`
+      (E[.. U ..]/A[.. U ..], EX/AX/EF/AF/EG/AG), fixpoint labelling
+      checker honoring dead-end stuttering; `fm ctl_check` wired
 
 ## Next
 
@@ -43,7 +46,6 @@
 ## Brainstorming (from competitive intel)
 
 - Past-time LTL operators (`Y`, `O`, `H`, `S`) for log checking
-- CTL-style branching properties on Kripke structures
 - Trace generators with shrinking beyond delta-debugging (e.g. grammar-aware)
 - SAT/SMT-backed bounded checking for bigger models (e.g. via `varisat`)
 
@@ -52,3 +54,18 @@
 | Date | Correctness | Formal fidelity | Maintainability | Docs | CLI | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | 2026-11-21 | 5 | 5 | 4 | 4 | 4 | Initial port; all TS tests mirrored and green |
+
+## Scorecard — 2026-11-21
+
+| Dimension | Score | Evidence |
+|---|---|---|
+| Correctness & coverage | 5 | 56 tests green; LTLf+periodic, lasso, fuzz, monitor, mutate, CTL all exercised |
+| Formal fidelity | 5 | dead-end stuttering consistent across LTL and CTL; verdict honesty held in mutate (`SurvivedIncomplete`) |
+| Maintainability | 4 | clippy clean both feature sets; `sat_set`/`apply` are dense but single-purpose |
+| Docs alignment | 5 | README/SPEC/ARCHITECTURE/TODO updated same-pass |
+| Wiring & ergonomics | 5 | `ctl`+`mutate` re-exported and reachable via `fm ctl_check` / `fm mutation_report` |
+| Footprint | 5 | serde + serde_json only; no_std core preserved |
+
+**Total: 29/30** — up from previous pass. Weakest: maintainability
+(fixpoint engine and `until_or_unary` are the densest code; acceptable —
+covered by 12 CTL tests, mature-module policy prefers coverage).
