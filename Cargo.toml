@@ -11,10 +11,24 @@ keywords = ["formal-methods", "ltl", "model-checking", "testing", "verification"
 categories = ["development-tools::testing", "algorithms"]
 authors = ["Ying Kit WONG"]
 
+[features]
+default = ["std"]
+## `ltl`, `monitor`, `concepts`, `fuzz` are `no_std`+`alloc`-capable;
+## `model` and the `fm` binary need `std` (Instant, HashMap, serde_json).
+std = ["serde/std", "dep:serde_json"]
+
 [dependencies]
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1", optional = true, features = ["preserve_order"] }
+
+[dev-dependencies]
 serde_json = { version = "1", features = ["preserve_order"] }
 
 [[bin]]
 name = "fm"
 path = "src/bin/fm.rs"
+required-features = ["std"]
+
+[[example]]
+name = "vending"
+required-features = ["std"]

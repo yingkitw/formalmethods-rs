@@ -53,6 +53,16 @@ agent-facing surface built on the crate.
 design; JSON is the interchange format (models in, results out), matching
 the sibling project's MCP tool schemas.
 
+### Feature split (`std`)
+
+- **default = `std`**: everything above, plus `serde_json` for the CLI's
+  JSON plumbing.
+- **`--no-default-features`**: `no_std` + `alloc` core — `ltl`, `monitor`,
+  `concepts`, `fuzz`. `model` and the `fm` bin are `std`-gated (`Instant`,
+  `HashMap`, `serde_json::Value`). `serde` is configured
+  `default-features = false` with `alloc`, so serde impls exist in both
+  configurations.
+
 ## Porting contract
 
 Behaviour is ported 1:1 from `../formalmethods/src/lib/formal/`: same

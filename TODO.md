@@ -27,9 +27,14 @@
 - [x] Runtime-monitor API — `monitor::Monitor` feeds states incrementally,
       decides early, `close()` agrees with `satisfies_trace` (asserted by
       tests on 18 formula×trace cases)
+- [x] `no_std`+`alloc` core — `ltl`/`monitor`/`concepts`/`fuzz` build under
+      `--no-default-features`; `model` and `fm` stay `std`-gated (Instant,
+      HashMap, serde_json). Verified: `cargo build|test|clippy
+      --no-default-features` green
 
 ## Next
-- [ ] `#[no_std]`-able core (`ltl` without serde) behind a feature flag
+
+- [ ] (backlog clear — see Brainstorming for candidates)
 
 ## Brainstorming (from competitive intel)
 

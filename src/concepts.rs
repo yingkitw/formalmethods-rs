@@ -5,6 +5,9 @@
 //!
 //! House style: one idea per paragraph, three sentences at most.
 
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+
 /// A section of a concept chapter: a heading, prose paragraphs, and an
 /// optional bullet list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

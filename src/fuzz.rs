@@ -5,6 +5,9 @@
 //! loop (drop positions, then drop individual atoms).  Deterministic given a
 //! seed, so every counterexample is reproducible.
 
+#[cfg(not(feature = "std"))]
+use alloc::{string::String, vec::Vec};
+#[cfg(feature = "std")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
@@ -44,6 +47,23 @@ pub struct FalsifyOptions {
     pub length: Option<usize>,
     /// RNG seed; omit for a nondeterministic one.
     pub seed: Option<u32>,
+}
+
+/// Seed used when `FalsifyOptions::seed` is `None`. With `std`, derived
+/// from the wall clock (nondeterministic); without `std` there is no clock,
+/// so it falls back to a fixed constant — pass an explicit `seed` for
+/// variety in `no_std` builds.
+#[cfg(feature = "std")]
+fn default_seed() -> u32 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.subsec_nanos() ^ (d.as_secs() as u32))
+        .unwrap_or(0x9e3779b9)
+}
+
+#[cfg(not(feature = "std"))]
+fn default_seed() -> u32 {
+    0x9e3779b9
 }
 
 /// The outcome of a falsification campaign.
@@ -117,12 +137,7 @@ pub fn shrink_trace(trace: &Trace, formula: &Formula) -> (Trace, usize) {
 pub fn falsify(formula: &Formula, atoms: &[String], opts: &FalsifyOptions) -> FalsifyResult {
     let iterations = opts.iterations.unwrap_or(300).clamp(1, 100_000);
     let length = opts.length.unwrap_or(6).clamp(1, 64);
-    let seed = opts.seed.unwrap_or_else(|| {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.subsec_nanos() ^ (d.as_secs() as u32))
-            .unwrap_or(0x9e3779b9)
-    });
+    let seed = opts.seed.unwrap_or_else(default_seed);
     let mut rng = Mulberry32::new(seed);
 
     let mut tried = 0usize;

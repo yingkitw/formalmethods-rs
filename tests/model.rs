@@ -1,3 +1,5 @@
+#![cfg(feature = "std")]
+
 use formalmethods::{
     ModelCheckOptions, Verdict, analyze_coverage, model_check, parse_kripke, parse_ltl,
 };

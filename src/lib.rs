@@ -34,9 +34,14 @@
 //! assert!(!satisfies_trace(&f, &trace(&[&["request"], &[]])));
 //! ```
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
+
 pub mod concepts;
 pub mod fuzz;
 pub mod ltl;
+#[cfg(feature = "std")]
 pub mod model;
 pub mod monitor;
 
@@ -48,6 +53,7 @@ pub use ltl::{
     print_ltl, satisfies_periodic, satisfies_trace, subformulas, trace, truth_table,
 };
 pub use monitor::{Monitor, MonitorVerdict};
+#[cfg(feature = "std")]
 pub use model::{
     CounterexampleWindow, CoverageReport, KripkeError, KripkeSpec, KripkeState,
     LassoCounterexample, ModelCheckOptions, ModelCheckResult, Verdict, analyze_coverage,

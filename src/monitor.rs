@@ -1,7 +1,7 @@
 //! Runtime verification: incremental monitoring of LTLf formulas over a
 //! stream of states.
 //!
-//! Instead of evaluating a whole [`Trace`] after the fact, a [`Monitor`]
+//! Instead of evaluating a whole [`Trace`][crate::ltl::Trace] after the fact, a [`Monitor`]
 //! consumes states one at a time (a test, a request log, a CI run) and
 //! reports the verdict the moment it becomes inevitable. This is the
 //! classic formula-progression construction: each `feed` rewrites the
@@ -11,6 +11,9 @@
 //! obligations (from unrolling `G`/`F`/`U`/`W`/`R`) evaluate weakly — `G p`
 //! is satisfied at the end, `F p` is not. A user's own `X` unwraps during
 //! progression, so `X a` on a one-state log correctly reports violated.
+
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, vec::Vec};
 
 use crate::ltl::{Formula, State};
 

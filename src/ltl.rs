@@ -11,8 +11,19 @@
 //!   finite Kripke structure realises such runs, and every LTL violation
 //!   that exists at all is witnessed by one of them.
 
-use std::collections::{BTreeSet, HashMap};
-use std::fmt;
+use core::fmt;
+
+#[cfg(not(feature = "std"))]
+use alloc::{
+    boxed::Box,
+    collections::{BTreeMap, BTreeSet},
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
+#[cfg(feature = "std")]
+use std::collections::{BTreeMap, BTreeSet};
 
 /// An LTL formula.
 ///
@@ -142,7 +153,7 @@ impl fmt::Display for LtlParseError {
     }
 }
 
-impl std::error::Error for LtlParseError {}
+impl core::error::Error for LtlParseError {}
 
 struct Tok {
     t: String,
@@ -582,8 +593,8 @@ fn children(f: &Formula) -> Vec<&Formula> {
 /// All distinct subformulas, post-order, deduplicated by printed form,
 /// smallest first.
 pub fn subformulas(f: &Formula) -> Vec<Formula> {
-    let mut seen: HashMap<String, Formula> = HashMap::new();
-    fn visit(f: &Formula, seen: &mut HashMap<String, Formula>) {
+    let mut seen: BTreeMap<String, Formula> = BTreeMap::new();
+    fn visit(f: &Formula, seen: &mut BTreeMap<String, Formula>) {
         for c in children(f) {
             visit(c, seen);
         }

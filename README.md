@@ -73,6 +73,10 @@ cargo build
 cargo test            # engine tests (parser, both semantics, checker, fuzzer)
 cargo run --example vending   # end-to-end tour
 cargo clippy --all-targets    # lint-clean
+
+# no_std core: ltl + monitor + concepts + fuzz (needs alloc)
+cargo build --no-default-features
+cargo test  --no-default-features
 ```
 
 Docs: `SPEC.md` (grammar + verdict semantics), `ARCHITECTURE.md` (module
