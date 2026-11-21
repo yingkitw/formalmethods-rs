@@ -111,5 +111,6 @@ proves absence of testing, never presence of correctness.
 ## CLI (`fm`)
 
 `fm <tool> '<json-args>'` → JSON result on stdout, exit non-zero on error.
+Pass `-` as the args to read the JSON object from stdin (pipe-friendly).
 Tools: `check_ltl`, `model_check`, `falsify_property`, `analyze_coverage`,
 `explain_concept` — same argument shapes as the sibling project's MCP tools.

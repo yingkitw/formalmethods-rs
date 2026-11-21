@@ -20,10 +20,9 @@
       (`{kind,arg|left,right|name}`), serde impl in `src/ltl.rs`
 - [x] Cargo.toml metadata (repository/homepage/documentation) — fixes the
       `cargo publish` warning
+- [x] `fm` reads args from stdin when the JSON arg is `-` (pipe-friendly)
 
 ## Next
-
-- [ ] `fm` reads args from stdin when the JSON arg is `-` (pipe-friendly)
 - [ ] Property patterns helper (`always`, `eventually`, `responds_to`) —
       constructors for the common spec shapes
 - [ ] Runtime-monitor API: incremental `eval_at` feed for streaming logs

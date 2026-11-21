@@ -25,6 +25,7 @@ const USAGE: &str = "\
 fm — formal methods for testing
 
 usage: fm <tool> [json-args]
+       json-args is a single JSON object; pass '-' to read it from stdin
 
 tools:
   check_ltl         evaluate an LTL formula on a finite trace (LTLf)
@@ -42,7 +43,17 @@ fn fail(msg: impl std::fmt::Display) -> ExitCode {
 fn args_json(args: &[String]) -> Result<Value, String> {
     match args {
         [] => Ok(json!({})),
-        [one] => serde_json::from_str(one).map_err(|e| format!("invalid JSON args: {e}")),
+        [one] => {
+            let src = if one == "-" {
+                let mut buf = String::new();
+                std::io::Read::read_to_string(&mut std::io::stdin(), &mut buf)
+                    .map_err(|e| format!("could not read stdin: {e}"))?;
+                buf
+            } else {
+                one.clone()
+            };
+            serde_json::from_str(&src).map_err(|e| format!("invalid JSON args: {e}"))
+        }
         _ => Err("expected at most one JSON argument".into()),
     }
 }
