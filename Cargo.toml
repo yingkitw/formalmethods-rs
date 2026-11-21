@@ -1,0 +1,16 @@
+[package]
+name = "formalmethods"
+version = "0.1.0"
+edition = "2024"
+description = "Formal methods for software testing: LTL evaluation on traces, Kripke model checking, property-based falsification, and coverage analysis."
+license = "MIT OR Apache-2.0"
+keywords = ["formal-methods", "ltl", "model-checking", "testing", "verification"]
+categories = ["development-tools::testing", "algorithms"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[[bin]]
+name = "fm"
+path = "src/bin/fm.rs"
