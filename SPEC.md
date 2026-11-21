@@ -23,6 +23,21 @@ IDENT    := [A-Za-z_][A-Za-z0-9_]*
   be atom names.
 - `print_ltl` emits the same syntax; parse ∘ print round-trips.
 
+## Formula JSON AST
+
+`Formula` serializes as the TS engine's tagged union (`serde`), so ASTs can
+cross process boundaries:
+
+```json
+{"kind": "atom", "name": "coin"}
+{"kind": "not", "arg": <formula>}
+{"kind": "until", "left": <formula>, "right": <formula>}
+```
+
+Kinds: `true`, `false`, `atom`, `not`, `and`, `or`, `implies`, `iff`,
+`next`, `globally`, `finally`, `until`, `weak`, `release`. `arg` for the
+unary kinds, `left`/`right` for binary, `name` for `atom`.
+
 ## Semantics
 
 ### Finite traces — LTLf (`satisfies_trace`, `eval_at`)

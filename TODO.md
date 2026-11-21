@@ -14,10 +14,15 @@
       `tests/fuzz.rs`) + `examples/vending.rs`
 - [x] `cargo build` / `cargo test` / `cargo clippy --all-targets` clean
 
+## Done (cont.)
+
+- [x] `Formula` serde round-trip — TS-compatible tagged JSON AST
+      (`{kind,arg|left,right|name}`), serde impl in `src/ltl.rs`
+- [x] Cargo.toml metadata (repository/homepage/documentation) — fixes the
+      `cargo publish` warning
+
 ## Next
 
-- [ ] `Formula` serde round-trip (JSON AST) so formulas can cross process
-      boundaries like models already do
 - [ ] `fm` reads args from stdin when the JSON arg is `-` (pipe-friendly)
 - [ ] Property patterns helper (`always`, `eventually`, `responds_to`) —
       constructors for the common spec shapes

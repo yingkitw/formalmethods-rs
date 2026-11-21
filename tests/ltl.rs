@@ -187,3 +187,80 @@ mod periodic_semantics {
         );
     }
 }
+
+mod serde_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn json_shape_matches_the_ts_ast() {
+        // The TypeScript engine serializes Formula as a tagged union:
+        // {kind:"atom",name}, {kind:"not",arg}, {kind:"until",left,right}.
+        assert_eq!(
+            serde_json::to_value(parse_ltl("a").unwrap()).unwrap(),
+            json!({"kind": "atom", "name": "a"})
+        );
+        assert_eq!(
+            serde_json::to_value(parse_ltl("!a").unwrap()).unwrap(),
+            json!({"kind": "not", "arg": {"kind": "atom", "name": "a"}})
+        );
+        assert_eq!(
+            serde_json::to_value(parse_ltl("a U b").unwrap()).unwrap(),
+            json!({
+                "kind": "until",
+                "left": {"kind": "atom", "name": "a"},
+                "right": {"kind": "atom", "name": "b"},
+            })
+        );
+        assert_eq!(
+            serde_json::to_value(parse_ltl("G (coin -> F dispense)").unwrap()).unwrap(),
+            json!({
+                "kind": "globally",
+                "arg": {
+                    "kind": "implies",
+                    "left": {"kind": "atom", "name": "coin"},
+                    "right": {"kind": "finally", "arg": {"kind": "atom", "name": "dispense"}},
+                },
+            })
+        );
+        assert_eq!(
+            serde_json::to_value(parse_ltl("true").unwrap()).unwrap(),
+            json!({"kind": "true"})
+        );
+    }
+
+    #[test]
+    fn round_trip_every_variant() {
+        for src in [
+            "true",
+            "false",
+            "p",
+            "!p",
+            "a && b",
+            "a || b",
+            "a -> b",
+            "a <-> b",
+            "X p",
+            "G p",
+            "F p",
+            "a U b",
+            "a W b",
+            "a R b",
+            "G (request -> F (ack || X done)) W (timeout <-> done R abort)",
+        ] {
+            let f = parse_ltl(src).unwrap();
+            let v = serde_json::to_value(&f).unwrap();
+            let back: formalmethods::Formula = serde_json::from_value(v).unwrap();
+            assert_eq!(back, f, "round-trip failed for {src}");
+        }
+    }
+
+    #[test]
+    fn rejects_unknown_kinds() {
+        assert!(serde_json::from_value::<formalmethods::Formula>(
+            json!({"kind": "yesterday", "arg": {"kind": "atom", "name": "a"}})
+        )
+        .is_err());
+        assert!(serde_json::from_value::<formalmethods::Formula>(json!({"kind": "atom"})).is_err());
+    }
+}

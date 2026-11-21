@@ -400,6 +400,121 @@ impl fmt::Display for Formula {
     }
 }
 
+// ---------------------------------------------------------------------------
+// JSON serialization — the TS engine's tagged AST shape
+// ({kind:"atom",name}, {kind:"not",arg}, {kind:"until",left,right})
+// ---------------------------------------------------------------------------
+
+fn kind_name(f: &Formula) -> &'static str {
+    match f {
+        Formula::True => "true",
+        Formula::False => "false",
+        Formula::Atom(_) => "atom",
+        Formula::Not(..) => "not",
+        Formula::And(..) => "and",
+        Formula::Or(..) => "or",
+        Formula::Implies(..) => "implies",
+        Formula::Iff(..) => "iff",
+        Formula::Next(..) => "next",
+        Formula::Globally(..) => "globally",
+        Formula::Finally(..) => "finally",
+        Formula::Until(..) => "until",
+        Formula::Weak(..) => "weak",
+        Formula::Release(..) => "release",
+    }
+}
+
+impl serde::Serialize for Formula {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("kind", kind_name(self))?;
+        match self {
+            Formula::Atom(name) => map.serialize_entry("name", name)?,
+            Formula::Not(arg)
+            | Formula::Next(arg)
+            | Formula::Globally(arg)
+            | Formula::Finally(arg) => map.serialize_entry("arg", arg)?,
+            Formula::And(l, r)
+            | Formula::Or(l, r)
+            | Formula::Implies(l, r)
+            | Formula::Iff(l, r)
+            | Formula::Until(l, r)
+            | Formula::Weak(l, r)
+            | Formula::Release(l, r) => {
+                map.serialize_entry("left", l)?;
+                map.serialize_entry("right", r)?;
+            }
+            Formula::True | Formula::False => {}
+        }
+        map.end()
+    }
+}
+
+/// Deserialization mirror of [`Formula`] — the same tagged AST shape the
+/// TypeScript engine uses, so formulas can cross the process boundary.
+#[derive(serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+enum FormulaJson {
+    True,
+    False,
+    Atom { name: String },
+    Not { arg: Box<FormulaJson> },
+    And { left: Box<FormulaJson>, right: Box<FormulaJson> },
+    Or { left: Box<FormulaJson>, right: Box<FormulaJson> },
+    Implies { left: Box<FormulaJson>, right: Box<FormulaJson> },
+    Iff { left: Box<FormulaJson>, right: Box<FormulaJson> },
+    Next { arg: Box<FormulaJson> },
+    Globally { arg: Box<FormulaJson> },
+    Finally { arg: Box<FormulaJson> },
+    Until { left: Box<FormulaJson>, right: Box<FormulaJson> },
+    Weak { left: Box<FormulaJson>, right: Box<FormulaJson> },
+    Release { left: Box<FormulaJson>, right: Box<FormulaJson> },
+}
+
+impl From<FormulaJson> for Formula {
+    fn from(j: FormulaJson) -> Self {
+        match j {
+            FormulaJson::True => Formula::True,
+            FormulaJson::False => Formula::False,
+            FormulaJson::Atom { name } => Formula::Atom(name),
+            FormulaJson::Not { arg } => Formula::Not(Box::new((*arg).into())),
+            FormulaJson::And { left, right } => {
+                Formula::And(Box::new((*left).into()), Box::new((*right).into()))
+            }
+            FormulaJson::Or { left, right } => {
+                Formula::Or(Box::new((*left).into()), Box::new((*right).into()))
+            }
+            FormulaJson::Implies { left, right } => {
+                Formula::Implies(Box::new((*left).into()), Box::new((*right).into()))
+            }
+            FormulaJson::Iff { left, right } => {
+                Formula::Iff(Box::new((*left).into()), Box::new((*right).into()))
+            }
+            FormulaJson::Next { arg } => Formula::Next(Box::new((*arg).into())),
+            FormulaJson::Globally { arg } => {
+                Formula::Globally(Box::new((*arg).into()))
+            }
+            FormulaJson::Finally { arg } => Formula::Finally(Box::new((*arg).into())),
+            FormulaJson::Until { left, right } => {
+                Formula::Until(Box::new((*left).into()), Box::new((*right).into()))
+            }
+            FormulaJson::Weak { left, right } => {
+                Formula::Weak(Box::new((*left).into()), Box::new((*right).into()))
+            }
+            FormulaJson::Release { left, right } => {
+                Formula::Release(Box::new((*left).into()), Box::new((*right).into()))
+            }
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Formula {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(FormulaJson::deserialize(deserializer)?.into())
+    }
+}
+
 /// Number of nodes in the formula's syntax tree.
 pub fn ast_size(f: &Formula) -> usize {
     match f {

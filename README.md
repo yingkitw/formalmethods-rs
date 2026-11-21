@@ -14,7 +14,7 @@ This crate is the Rust port of the engine behind
 
 | Module | What it is |
 | --- | --- |
-| `ltl` | LTL parser, printer, and **two** evaluators: finite-trace (LTLf) and ultimately-periodic (infinite) semantics, plus truth tables |
+| `ltl` | LTL parser, printer, and **two** evaluators: finite-trace (LTLf) and ultimately-periodic (infinite) semantics, plus truth tables and a serde JSON AST |
 | `model` | Kripke structures, lasso-based model checker (exhaustive or depth-bounded), state/transition coverage analysis |
 | `fuzz` | Property-based falsification: seeded random traces (`Mulberry32`) + delta-debugging shrinker |
 | `concepts` | The field guide: ten chapters of explanation for agent-facing tooling |
