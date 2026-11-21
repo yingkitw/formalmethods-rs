@@ -101,6 +101,19 @@ violating trace is shrunk by delta-debugging: drop positions, then drop
 individual atoms, while the trace still violates. `violated: false` means
 *not falsified*, never *proven*.
 
+## Runtime monitoring (`Monitor`)
+
+`Monitor::new(&formula)` then `feed(&state)` consumes a stream one state at
+a time; `verdict()` reports `Satisfied` / `Violated` the moment the outcome
+is inevitable (residual reduced to `true`/`false`), else `Pending`.
+`close()` ends the stream and returns the final `bool`.
+
+Implementation: Bauer-style formula progression — `feed` rewrites the
+formula into the residual obligation for the remaining suffix
+(`P(G f, s) = P(f, s) && G f`, etc.); `close` evaluates the residual on the
+empty suffix under LTLf. `Monitor::close` agrees with `satisfies_trace` on
+the consumed log — same property, two execution modes (asserted by tests).
+
 ## Coverage (`analyze_coverage`)
 
 Given a model and test traces (state-id sequences), reports covered /

@@ -38,6 +38,7 @@ pub mod concepts;
 pub mod fuzz;
 pub mod ltl;
 pub mod model;
+pub mod monitor;
 
 pub use concepts::{CONCEPTS, Concept, ConceptSection, concept_index, get_concept};
 pub use fuzz::{FalsifyOptions, FalsifyResult, Mulberry32, falsify, shrink_trace};
@@ -46,6 +47,7 @@ pub use ltl::{
     collect_atoms, eval_at, eval_periodic_at, parse_ltl, periodic_atoms, periodic_truth_table,
     print_ltl, satisfies_periodic, satisfies_trace, subformulas, trace, truth_table,
 };
+pub use monitor::{Monitor, MonitorVerdict};
 pub use model::{
     CounterexampleWindow, CoverageReport, KripkeError, KripkeSpec, KripkeState,
     LassoCounterexample, ModelCheckOptions, ModelCheckResult, Verdict, analyze_coverage,

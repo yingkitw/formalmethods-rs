@@ -50,6 +50,37 @@ impl Formula {
     pub fn parse(src: &str) -> Result<Self, LtlParseError> {
         parse_ltl(src)
     }
+
+    /// `G p` — safety: `p` holds in every state.
+    pub fn always(p: impl Into<Formula>) -> Self {
+        Formula::Globally(Box::new(p.into()))
+    }
+
+    /// `F p` — liveness: `p` holds somewhere later.
+    pub fn eventually(p: impl Into<Formula>) -> Self {
+        Formula::Finally(Box::new(p.into()))
+    }
+
+    /// `G (req -> F res)` — the request/response contract: every `req` is
+    /// eventually answered by `res`.
+    pub fn responds_to(req: impl Into<Formula>, res: impl Into<Formula>) -> Self {
+        Formula::Globally(Box::new(Formula::Implies(
+            Box::new(req.into()),
+            Box::new(Formula::eventually(res)),
+        )))
+    }
+}
+
+impl From<&str> for Formula {
+    fn from(name: &str) -> Self {
+        Formula::atom(name)
+    }
+}
+
+impl From<String> for Formula {
+    fn from(name: String) -> Self {
+        Formula::Atom(name)
+    }
 }
 
 /// A state is the set of atomic propositions holding there.

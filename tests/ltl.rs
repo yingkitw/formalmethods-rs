@@ -188,6 +188,37 @@ mod periodic_semantics {
     }
 }
 
+mod property_patterns {
+    use super::*;
+    use formalmethods::Formula;
+
+    #[test]
+    fn common_spec_shapes() {
+        assert_eq!(Formula::always("ok").to_string(), "G ok");
+        assert_eq!(Formula::eventually("done").to_string(), "F done");
+        assert_eq!(
+            Formula::responds_to("request", "response").to_string(),
+            "G (request -> F response)"
+        );
+        // patterns compose with parsed formulas
+        assert_eq!(
+            Formula::always(Formula::responds_to("coin", "vend")).to_string(),
+            "G (G (coin -> F vend))"
+        );
+    }
+
+    #[test]
+    fn patterns_evaluate_like_their_parse() {
+        let built = Formula::responds_to("request", "response");
+        let parsed = parse_ltl("G (request -> F response)").unwrap();
+        assert_eq!(built, parsed);
+        assert_eq!(
+            satisfies_trace(&built, &trace(&[&["request"], &["response"]])),
+            satisfies_trace(&parsed, &trace(&[&["request"], &["response"]]))
+        );
+    }
+}
+
 mod serde_tests {
     use super::*;
     use serde_json::json;

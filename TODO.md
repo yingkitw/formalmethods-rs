@@ -21,12 +21,14 @@
 - [x] Cargo.toml metadata (repository/homepage/documentation) — fixes the
       `cargo publish` warning
 - [x] `fm` reads args from stdin when the JSON arg is `-` (pipe-friendly)
+- [x] Property patterns helper — `Formula::{always, eventually,
+      responds_to}` constructors + `From<&str>`/`From<String>` for atoms
+
+- [x] Runtime-monitor API — `monitor::Monitor` feeds states incrementally,
+      decides early, `close()` agrees with `satisfies_trace` (asserted by
+      tests on 18 formula×trace cases)
 
 ## Next
-- [ ] Property patterns helper (`always`, `eventually`, `responds_to`) —
-      constructors for the common spec shapes
-- [ ] Runtime-monitor API: incremental `eval_at` feed for streaming logs
-      (consume events one at a time instead of a whole `Trace`)
 - [ ] `#[no_std]`-able core (`ltl` without serde) behind a feature flag
 
 ## Brainstorming (from competitive intel)
