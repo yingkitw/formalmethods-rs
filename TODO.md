@@ -93,6 +93,12 @@
       `eval_periodic_at`; same `holds` bar as `model_check`; `fm
       sat_check` wired. Verified by a 60-case cross-engine agreement
       battery (20 formulas × 3 presets)
+- [x] Differential fixtures — `tests/fixtures/differential.json` holds
+      ~5 000 (input, verdict) rows computed by the *actual* TS engine
+      (`scripts/gen_differential.ts`, seeded via mulberry32; formula ASTs
+      also exercise the serde shape). `tests/differential.rs` replays
+      `eval_at`/`satisfies_periodic`/`model_check` on every row —
+      ~50/50 verdict split, zero mismatches
 
 ## Next
 
@@ -103,9 +109,8 @@
 - `approaches`-style worked examples (per-language onboarding: native code
   → artifact → LTL mapping); TS ships it as website content — a Rust
   version would be doc examples, not an engine module
-- Differential fixtures: generate (formula, trace, verdict) triples from
-  the TS engine as golden files, replay them in tests — direct parity
-  evidence rather than mirrored test structure
+- Periodic regeneration of the differential fixture when the TS engine
+  changes (or a CI hook into the sibling repo)
 
 ## Scorecard
 

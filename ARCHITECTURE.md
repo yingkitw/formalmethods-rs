@@ -162,3 +162,10 @@ Behaviour is ported 1:1 from `../formalmethods/src/lib/formal/`: same
 grammar and precedence, same LTLf/periodic semantics, same lasso
 enumeration order, same shrink strategy, same warning/error wording where
 user-visible. When the TS engine changes, mirror it here — and vice versa.
+
+Parity is *verified*, not just claimed: `tests/fixtures/differential.json`
+holds ~5 000 (input, verdict) rows computed by the TS engine itself
+(`scripts/gen_differential.ts` regenerates it), and `tests/differential.rs`
+replays them — `eval_at`, `satisfies_periodic`, and `model_check` verdicts
+must agree on every row. A ~50/50 true/false split keeps the corpus
+discriminating.

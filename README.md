@@ -91,6 +91,9 @@ cargo clippy --all-targets    # lint-clean
 # no_std core: ltl + monitor + concepts + fuzz (needs alloc)
 cargo build --no-default-features
 cargo test  --no-default-features
+
+# regenerate the parity fixture (needs bun + the sibling TS repo at ../formalmethods)
+bun scripts/gen_differential.ts > tests/fixtures/differential.json
 ```
 
 Docs: `SPEC.md` (grammar + verdict semantics), `ARCHITECTURE.md` (module
