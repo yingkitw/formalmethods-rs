@@ -217,8 +217,11 @@ counterexample.
 Pass `-` as the args to read the JSON object from stdin (pipe-friendly).
 Tools: `check_ltl`, `monitor_ltl`, `model_check`, `ctl_check`,
 `analyze_depth`, `mutation_report`, `analyze_spec_coverage`,
-`falsify_property`, `analyze_coverage`, `explain_concept` — argument
-shapes mirror the sibling project's MCP tools. `ctl_check` takes
+`falsify_property`, `analyze_coverage`, `explain_concept`,
+`read_skills_guide` — argument shapes mirror the sibling project's MCP
+tools. `read_skills_guide` takes no args and returns `{path, source,
+content}` — `SKILLS.md` verbatim via `include_str!`, so the served guide
+is never stale. `ctl_check` takes
 `formula` in CTL syntax plus `model`, and reports `satisfying` /
 `violating_initials`; `mutation_report` takes `model` plus `formulas`
 (an array of LTL strings) and reports the mutant tally and kill rate;

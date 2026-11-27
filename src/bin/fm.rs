@@ -13,6 +13,7 @@
 //! fm analyze_coverage '{"model":{...},"traces":[["idle","paid"]]}'
 //! fm analyze_spec_coverage '{"formula":"G (coin -> F dispense)","model":{...}}'
 //! fm explain_concept  '{"concept":"ltl"}'      # or no arg for the index
+//! fm read_skills_guide                        # the doing-guide, verbatim
 //! ```
 //!
 //! Output is JSON on stdout; failures exit non-zero with the error on stderr.
@@ -24,7 +25,7 @@ use formalmethods::{
     falsify, falsifying_window, get_concept, concept_index, model_check, monitor_trace,
     mutation_report, parse_ctl, parse_kripke, parse_ltl, presets, print_ctl, print_ltl,
     satisfies_trace, truth_table, validate_kripke, FalsifyOptions, KripkeSpec,
-    ModelCheckOptions, State, Trace,
+    ModelCheckOptions, State, Trace, SKILLS_GUIDE,
 };
 use serde_json::{Value, json};
 
@@ -45,6 +46,7 @@ tools:
   falsify_property  random-trace falsification with shrinking (guided=true for coverage-guided)
   analyze_coverage  state/transition coverage of test traces
   explain_concept   the field guide (no arg → index of topics)
+  read_skills_guide the doing-guide (SKILLS.md), verbatim
 ";
 
 fn fail(msg: impl std::fmt::Display) -> ExitCode {
@@ -396,6 +398,11 @@ fn main() -> ExitCode {
                     }))
                 }
             },
+            "read_skills_guide" => Ok(json!({
+                "path": "SKILLS.md",
+                "source": "https://github.com/yingkitw/formalmethods-rs/blob/main/SKILLS.md",
+                "content": SKILLS_GUIDE,
+            })),
             other => Err(format!("unknown tool '{other}'\n\n{USAGE}")),
         }
     };

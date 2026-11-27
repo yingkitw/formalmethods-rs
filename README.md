@@ -53,7 +53,11 @@ fm falsify_property '{"formula":"G (a -> F b)","atoms":["a","b"],"seed":42,"guid
 fm analyze_coverage '{"model":{...},"traces":[["idle","paid","vend"]]}'
 fm analyze_spec_coverage '{"formula":"G (coin -> F dispense)","model":{...}}'
 fm explain_concept  '{"concept":"ltl"}'     # or no arg for the topic index
+fm read_skills_guide                        # the doing-guide (SKILLS.md), verbatim
 ```
+
+Every model-taking tool also accepts `"preset":"vending"`,
+`"vending-eaten"`, or `"traffic-light"` instead of a `model` object.
 
 ## Two semantics, one grammar
 

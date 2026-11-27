@@ -121,6 +121,8 @@ Static `&'static` data — the same eleven chapters the TypeScript lab
 serves, reworded only where it says "this lab" (and noting our native
 `ctl_check` where the text says the lab answers compositionally). Powers
 `fm explain_concept` and any agent-facing surface built on the crate.
+Also exports `SKILLS_GUIDE = include_str!("../SKILLS.md")` — the
+doing-guide, served verbatim by `fm read_skills_guide`.
 
 ## Dependencies
 

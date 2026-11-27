@@ -67,7 +67,9 @@ pub mod replay;
 #[cfg(feature = "std")]
 pub mod sweep;
 
-pub use concepts::{CONCEPTS, Concept, ConceptSection, concept_index, get_concept};
+pub use concepts::{
+    CONCEPTS, Concept, ConceptSection, SKILLS_GUIDE, concept_index, get_concept,
+};
 #[cfg(feature = "std")]
 pub use ctl::{CtlFormula, CtlParseError, CtlResult, ctl_check, parse_ctl, print_ctl};
 pub use fuzz::{

@@ -8,6 +8,10 @@
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
+/// The doing-guide, verbatim — `SKILLS.md` at the repo root, embedded at
+/// compile time so `fm read_skills_guide` can never serve a stale copy.
+pub const SKILLS_GUIDE: &str = include_str!("../SKILLS.md");
+
 /// A section of a concept chapter: a heading, prose paragraphs, and an
 /// optional bullet list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

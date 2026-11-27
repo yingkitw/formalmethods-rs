@@ -65,6 +65,12 @@
 - [x] `fm` wiring — `monitor_ltl`, `analyze_depth`,
       `analyze_spec_coverage`, `guided` flag
 - [x] 11th concept chapter `ctl-vs-ltl` (adapted to mention `ctl_check`)
+- [x] `presets` module + `preset` arg on every model-taking `fm` tool
+      (vending / vending-eaten / traffic-light — MCP `resolveModel` parity)
+- [x] `read_skills_guide` — `SKILLS.md` doing-guide at repo root, served
+      verbatim via `SKILLS_GUIDE` (`include_str!`); last tool-surface gap
+      vs the TS MCP server closed. `approaches.ts` deliberately skipped —
+      it's website lab content, not engine.
 
 ## Next
 
@@ -74,8 +80,9 @@
 
 - Trace generators with shrinking beyond delta-debugging (e.g. grammar-aware)
 - SAT/SMT-backed bounded checking for bigger models (e.g. via `varisat`)
-- `preset` arg for the `fm` model-taking tools (TS MCP tools accept named
-  presets: vending / vending-eaten / traffic-light)
+- `approaches`-style worked examples (per-language onboarding: native code
+  → artifact → LTL mapping); TS ships it as website content — a Rust
+  version would be doc examples, not an engine module
 
 ## Scorecard
 
