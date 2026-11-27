@@ -450,8 +450,11 @@ fn precedence(f: &Formula) -> u8 {
 
 /// Print a formula in the same surface syntax the parser accepts.
 ///
-/// The output round-trips: `parse_ltl(&print_ltl(f)) == f` modulo
-/// associativity of binary operators (which is preserved anyway).
+/// The output round-trips exactly: `parse_ltl(&print_ltl(f)) == f`.
+/// Equal-precedence children are parenthesised on the side the parser
+/// would re-associate away from — e.g. right children of the
+/// left-associative `U`/`W`/`R`/`S` chain, left children of the
+/// right-associative `->`.
 pub fn print_ltl(f: &Formula) -> String {
     fn rec(f: &Formula, parent: u8) -> String {
         let prec = precedence(f);
@@ -467,14 +470,14 @@ pub fn print_ltl(f: &Formula) -> String {
             Formula::Yesterday(arg) => wrap(format!("Y {}", rec(arg, 7))),
             Formula::Once(arg) => wrap(format!("O {}", rec(arg, 7))),
             Formula::Historically(arg) => wrap(format!("H {}", rec(arg, 7))),
-            Formula::And(l, r) => wrap(format!("{} && {}", rec(l, 4), rec(r, 4))),
-            Formula::Or(l, r) => wrap(format!("{} || {}", rec(l, 3), rec(r, 3))),
-            Formula::Implies(l, r) => wrap(format!("{} -> {}", rec(l, 2), rec(r, 2))),
-            Formula::Iff(l, r) => wrap(format!("{} <-> {}", rec(l, 1), rec(r, 1))),
-            Formula::Until(l, r) => wrap(format!("{} U {}", rec(l, 5), rec(r, 5))),
-            Formula::Weak(l, r) => wrap(format!("{} W {}", rec(l, 5), rec(r, 5))),
-            Formula::Release(l, r) => wrap(format!("{} R {}", rec(l, 5), rec(r, 5))),
-            Formula::Since(l, r) => wrap(format!("{} S {}", rec(l, 5), rec(r, 5))),
+            Formula::And(l, r) => wrap(format!("{} && {}", rec(l, 4), rec(r, 5))),
+            Formula::Or(l, r) => wrap(format!("{} || {}", rec(l, 3), rec(r, 4))),
+            Formula::Implies(l, r) => wrap(format!("{} -> {}", rec(l, 3), rec(r, 2))),
+            Formula::Iff(l, r) => wrap(format!("{} <-> {}", rec(l, 1), rec(r, 2))),
+            Formula::Until(l, r) => wrap(format!("{} U {}", rec(l, 5), rec(r, 6))),
+            Formula::Weak(l, r) => wrap(format!("{} W {}", rec(l, 5), rec(r, 6))),
+            Formula::Release(l, r) => wrap(format!("{} R {}", rec(l, 5), rec(r, 6))),
+            Formula::Since(l, r) => wrap(format!("{} S {}", rec(l, 5), rec(r, 6))),
         }
     }
     rec(f, 0)

@@ -76,6 +76,13 @@
 - [x] `shrink_trace_for` — formula-aware shrinking (strip atoms the
       formula can't observe — provably safe — then delta-debug);
       extension-only, `falsify` stays semantics-blind
+- [x] `print_ltl` associativity fix — equal-prec children now wrap on the
+      side the parser re-associates away from (`(a -> b) -> c`,
+      `a U (b U c)`); old output reparsed to a *different* AST. TS
+      `printLtl` shares the latent bug — deliberate divergence.
+- [x] `gen_formula` — randltl-style random formula generator (Spot
+      parity); 400-seed parse∘print round-trip property guards the whole
+      grammar, past-time ops included
 
 ## Next
 
@@ -83,10 +90,12 @@
 
 ## Brainstorming (from competitive intel)
 
-- Formula-aware generation (the other half of grammar-aware: bias trace
-  atoms toward the formula's vocabulary; the shrink side shipped as
-  `shrink_trace_for`)
-- SAT/SMT-backed bounded checking for bigger models (e.g. via `varisat`)
+- Trace-side atom bias in `falsify` (non-uniform p per atom/position —
+  e.g. sparse traces so `F rare` violations are reachable); lives inside
+  mature `fuzz.rs`, needs explicit approval; alphabet restriction already
+  done via the caller's `atoms`
+- SAT/SMT-backed bounded checking for bigger models (e.g. via `varisat`);
+  needs a dependency decision — conflicts with the serde-only footprint
 - `approaches`-style worked examples (per-language onboarding: native code
   → artifact → LTL mapping); TS ships it as website content — a Rust
   version would be doc examples, not an engine module
@@ -127,3 +136,18 @@ covered by 12 CTL tests, mature-module policy prefers coverage).
 `../formalmethods` now has a Rust twin. Weakest: maintainability (same
 note as before — the dense spots are covered and the mature-module
 policy prefers tests over rewrites).
+## Scorecard — 2026-11-22 (pass 2)
+
+| Dimension | Score | Evidence |
+|---|---|---|
+| Correctness & coverage | 5 | 106 tests; 400-seed gen_formula round-trip property guards every grammar construct |
+| Formal fidelity | 5 | `print_ltl` round-trip now *exact* — found+fixed an AST-corruption bug (`(a->b)->c` printed as `a->b->c`); TS shares the latent bug, divergence documented |
+| Maintainability | 5 | `with_child` table-collapsed (the flagged weak spot); `gen_formula` is a flat match; clippy 0 both feature sets |
+| Docs alignment | 5 | SPEC print-law + gen_formula, TODO, MEMORY harvested same-pass |
+| Wiring & ergonomics | 5 | `gen_formula` exported; all parity tools in `fm` (no fm wrapper for it — TS surface has none either) |
+| Footprint | 5 | serde + serde_json only |
+
+**Total: 30/30** — the 4→5 maintainability bump is earned by the
+`with_child` collapse; residual dense spots (`sat_set`, `apply`) are
+test-covered per the mature-module policy. Remaining candidates all
+need a user decision (mature-module edit or a new dependency).

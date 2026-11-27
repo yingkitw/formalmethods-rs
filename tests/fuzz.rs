@@ -205,3 +205,49 @@ mod mulberry32_tests {
         assert_eq!(va, vb);
     }
 }
+
+mod gen_formula_tests {
+    use super::*;
+    use formalmethods::{eval_at, gen_formula, print_ltl, trace};
+
+    #[test]
+    fn is_deterministic_given_a_seed() {
+        let a = atoms(&["p", "q"]);
+        let f1 = gen_formula(&a, 3, &mut Mulberry32::new(9));
+        let f2 = gen_formula(&a, 3, &mut Mulberry32::new(9));
+        assert_eq!(print_ltl(&f1), print_ltl(&f2));
+    }
+
+    #[test]
+    fn printed_formulas_reparse_to_the_same_ast() {
+        // The property that guards the printer: every generated formula,
+        // across the whole grammar (past-time operators included), must
+        // survive a print -> parse round trip unchanged.
+        let a = atoms(&["p", "q", "r"]);
+        for seed in 0..400u32 {
+            let f = gen_formula(&a, 3, &mut Mulberry32::new(seed));
+            let text = print_ltl(&f);
+            let reparsed = parse_ltl(&text).unwrap_or_else(|e| panic!("seed {seed}: {text}: {e}"));
+            assert_eq!(reparsed, f, "seed {seed}: {text}");
+        }
+    }
+
+    #[test]
+    fn generated_formulas_evaluate_without_panicking() {
+        let a = atoms(&["p", "q"]);
+        let t = trace(&[&["p"], &[], &["p", "q"], &["q"]]);
+        for seed in 0..200u32 {
+            let f = gen_formula(&a, 4, &mut Mulberry32::new(seed));
+            let _ = eval_at(&f, &t, 0);
+        }
+    }
+
+    #[test]
+    fn depth_zero_is_a_leaf() {
+        let a = atoms(&["p", "q"]);
+        for seed in 0..20u32 {
+            let f = gen_formula(&a, 0, &mut Mulberry32::new(seed));
+            assert!(formalmethods::ast_size(&f) == 1);
+        }
+    }
+}

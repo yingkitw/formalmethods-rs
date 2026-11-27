@@ -56,6 +56,31 @@ mod parser {
             .collect();
         assert_eq!(atoms, ["Old", "S2", "yes"]);
     }
+
+    #[test]
+    fn prints_parentheses_where_associativity_would_change_the_meaning() {
+        // -> is right-associative: a left-nested AST must keep its parens.
+        let f = parse_ltl("(a -> b) -> c").unwrap();
+        assert_eq!(print_ltl(&f), "(a -> b) -> c");
+        assert_eq!(parse_ltl(&print_ltl(&f)).unwrap(), f);
+        // U/W/R/S are left-associative: a right-nested AST must keep its parens.
+        for (src, printed) in [
+            ("a U (b U c)", "a U (b U c)"),
+            ("a U (b W c)", "a U (b W c)"),
+            ("(a R b) R c", "a R b R c"),
+            ("a S (b S c)", "a S (b S c)"),
+            ("a <-> (b <-> c)", "a <-> (b <-> c)"),
+            ("a || (b || c)", "a || (b || c)"),
+            ("a && (b && c)", "a && (b && c)"),
+        ] {
+            let f = parse_ltl(src).unwrap();
+            assert_eq!(print_ltl(&f), printed, "{src}");
+            assert_eq!(parse_ltl(&print_ltl(&f)).unwrap(), f, "{src}");
+        }
+        // left-nested / right-nested-by-grammar still print flat
+        assert_eq!(print_ltl(&parse_ltl("a -> b -> c").unwrap()), "a -> b -> c");
+        assert_eq!(print_ltl(&parse_ltl("a U b U c").unwrap()), "a U b U c");
+    }
 }
 
 mod past_semantics {

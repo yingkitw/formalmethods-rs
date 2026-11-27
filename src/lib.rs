@@ -73,8 +73,8 @@ pub use concepts::{
 #[cfg(feature = "std")]
 pub use ctl::{CtlFormula, CtlParseError, CtlResult, ctl_check, parse_ctl, print_ctl};
 pub use fuzz::{
-    FalsifyOptions, FalsifyResult, GuidedCoverage, Mulberry32, falsify, shrink_trace,
-    shrink_trace_for,
+    FalsifyOptions, FalsifyResult, GuidedCoverage, Mulberry32, falsify, gen_formula,
+    shrink_trace, shrink_trace_for,
 };
 pub use ltl::{
     Formula, LtlParseError, PeriodicTrace, State, Trace, TruthRow, TruthTable, ast_size,

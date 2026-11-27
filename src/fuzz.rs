@@ -6,7 +6,7 @@
 //! seed, so every counterexample is reproducible.
 
 #[cfg(not(feature = "std"))]
-use alloc::{collections::BTreeSet, string::String, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeSet, string::String, vec::Vec};
 #[cfg(feature = "std")]
 use std::{collections::BTreeSet, time::{SystemTime, UNIX_EPOCH}};
 
@@ -173,6 +173,72 @@ pub fn shrink_trace_for(trace: &Trace, formula: &Formula) -> (Trace, usize) {
         })
         .collect();
     shrink_trace(&stripped, formula)
+}
+
+/// Generate a random formula over `atoms`, depth-bounded — randltl-style.
+///
+/// Covers the whole grammar, past-time operators included; `max_depth`
+/// bounds AST depth (a leaf counts as depth 0). Deterministic given the
+/// `rng` — the companion to `parse_ltl`/`print_ltl` round-trip fuzzing
+/// and to conjuring random properties to probe a spec with.
+pub fn gen_formula(atoms: &[String], max_depth: usize, rng: &mut Mulberry32) -> Formula {
+    fn leaf(atoms: &[String], rng: &mut Mulberry32) -> Formula {
+        if !atoms.is_empty() && rng.next_f64() < 0.8 {
+            Formula::Atom(atoms[(rng.next_f64() * atoms.len() as f64) as usize].clone())
+        } else if rng.next_f64() < 0.5 {
+            Formula::True
+        } else {
+            Formula::False
+        }
+    }
+    if max_depth == 0 {
+        return leaf(atoms, rng);
+    }
+    let d = max_depth - 1;
+    let sub = |rng: &mut Mulberry32| Box::new(gen_formula(atoms, d, rng));
+    let bin = |rng: &mut Mulberry32| (sub(rng), sub(rng));
+    match (rng.next_f64() * 18.0) as usize {
+        0..=2 => leaf(atoms, rng),
+        3 => Formula::Not(sub(rng)),
+        4 => Formula::Next(sub(rng)),
+        5 => Formula::Globally(sub(rng)),
+        6 => Formula::Finally(sub(rng)),
+        7 => Formula::Yesterday(sub(rng)),
+        8 => Formula::Once(sub(rng)),
+        9 => Formula::Historically(sub(rng)),
+        10 => {
+            let (l, r) = bin(rng);
+            Formula::And(l, r)
+        }
+        11 => {
+            let (l, r) = bin(rng);
+            Formula::Or(l, r)
+        }
+        12 => {
+            let (l, r) = bin(rng);
+            Formula::Implies(l, r)
+        }
+        13 => {
+            let (l, r) = bin(rng);
+            Formula::Iff(l, r)
+        }
+        14 => {
+            let (l, r) = bin(rng);
+            Formula::Until(l, r)
+        }
+        15 => {
+            let (l, r) = bin(rng);
+            Formula::Weak(l, r)
+        }
+        16 => {
+            let (l, r) = bin(rng);
+            Formula::Release(l, r)
+        }
+        _ => {
+            let (l, r) = bin(rng);
+            Formula::Since(l, r)
+        }
+    }
 }
 
 /// One bounded mutation of a corpus trace: drop a position, duplicate

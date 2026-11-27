@@ -22,7 +22,10 @@ IDENT    := [A-Za-z_][A-Za-z0-9_]*
 - `X`, `G`, `F`, `U`, `W`, `R`, `Y`, `O`, `H`, `S`, `true`, `false` are
   reserved — they cannot be atom names. Only the *exact* operator tokens
   are reserved: `yes`, `Old`, `S2` still lex as atoms.
-- `print_ltl` emits the same syntax; parse ∘ print round-trips.
+- `print_ltl` emits the same syntax; parse ∘ print round-trips exactly.
+  Equal-precedence children get parens on the side the parser would
+  re-associate away from: right children of `U`/`W`/`R`/`S`/`<->`/`||`/`&&`
+  (left-associative chains), left children of `->` (right-associative).
 - Past-time operators: `Y` (yesterday), `O` (once), `H` (historically),
   `p S q` (since).
 
@@ -128,6 +131,11 @@ atoms the formula never mentions are unobservable, so they're stripped
 unconditionally before delta-debugging — the same violation, strictly
 more readable. `falsify` itself stays semantics-blind (TS parity);
 compose it on the returned counterexample.
+
+`gen_formula(&atoms, max_depth, &mut rng)` generates random formulas
+(randltl-style, depth-bounded, whole grammar including past-time
+operators) — for round-trip fuzzing and conjuring random properties
+to probe a spec with.
 
 ## Runtime monitoring (`Monitor`)
 
