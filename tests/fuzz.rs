@@ -69,6 +69,7 @@ mod guided_tests {
                 iterations: Some(60),
                 length: Some(4),
                 guided: Some(true),
+                atom_density: None,
             },
         );
         let cov = r.coverage.expect("guided campaigns report coverage");
@@ -100,6 +101,7 @@ mod guided_tests {
             iterations: Some(80),
             length: Some(5),
             guided: Some(true),
+            atom_density: None,
         };
         let f = parse_ltl("G (a -> F b)").unwrap();
         let xs = atoms(&["a", "b", "c"]);
@@ -123,6 +125,7 @@ mod guided_tests {
                 iterations: Some(200),
                 length: Some(4),
                 guided: Some(true),
+                atom_density: None,
             },
         );
         assert!(r.violated);
@@ -142,6 +145,7 @@ mod guided_tests {
                 iterations: Some(10),
                 length: Some(2),
                 guided: Some(true),
+                atom_density: None,
             },
         );
         assert_eq!(r.coverage.unwrap().states_possible, None);
@@ -249,5 +253,60 @@ mod gen_formula_tests {
             let f = gen_formula(&a, 0, &mut Mulberry32::new(seed));
             assert!(formalmethods::ast_size(&f) == 1);
         }
+    }
+}
+
+mod atom_density_tests {
+    use super::*;
+
+    #[test]
+    fn zero_density_forces_empty_states_and_falsifies_f_p() {
+        let f = parse_ltl("F p").unwrap();
+        let r = falsify(
+            &f,
+            &atoms(&["p", "q"]),
+            &FalsifyOptions {
+                seed: Some(1),
+                iterations: Some(10),
+                atom_density: Some(0.0),
+                ..Default::default()
+            },
+        );
+        assert!(r.violated, "all-empty traces must violate F p");
+    }
+
+    #[test]
+    fn zero_density_never_falsifies_g_not_p() {
+        let f = parse_ltl("G !p").unwrap();
+        let r = falsify(
+            &f,
+            &atoms(&["p", "q"]),
+            &FalsifyOptions {
+                seed: Some(1),
+                iterations: Some(10),
+                atom_density: Some(0.0),
+                ..Default::default()
+            },
+        );
+        assert!(!r.violated, "all-empty traces satisfy G !p");
+    }
+
+    #[test]
+    fn none_density_keeps_the_default_campaign() {
+        // Parity guard: omitting the knob must be identical to the
+        // pre-knob ½ campaign for the same seed.
+        let f = parse_ltl("G (request -> F response)").unwrap();
+        let a = atoms(&["request", "response", "timeout"]);
+        let opts = |d| FalsifyOptions {
+            seed: Some(424242),
+            iterations: Some(50),
+            length: Some(6),
+            atom_density: d,
+            ..Default::default()
+        };
+        let r1 = falsify(&f, &a, &opts(None));
+        let r2 = falsify(&f, &a, &opts(Some(0.5)));
+        assert_eq!(r1.tried, r2.tried);
+        assert_eq!(r1.violated, r2.violated);
     }
 }

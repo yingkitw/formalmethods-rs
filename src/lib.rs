@@ -65,6 +65,8 @@ pub mod presets;
 #[cfg(feature = "std")]
 pub mod replay;
 #[cfg(feature = "std")]
+pub mod sat;
+#[cfg(feature = "std")]
 pub mod sweep;
 
 pub use concepts::{
@@ -96,5 +98,7 @@ pub use mutate::{
 };
 #[cfg(feature = "std")]
 pub use replay::{FalsifyingWindow, counterexample_run, falsifying_window};
+#[cfg(feature = "std")]
+pub use sat::{SatOptions, SatResult, sat_check};
 #[cfg(feature = "std")]
 pub use sweep::{DepthRow, DepthSweep, analyze_depth};

@@ -15,11 +15,12 @@ authors = ["Ying Kit WONG"]
 default = ["std"]
 ## `ltl`, `monitor`, `concepts`, `fuzz` are `no_std`+`alloc`-capable;
 ## `model` and the `fm` binary need `std` (Instant, HashMap, serde_json).
-std = ["serde/std", "dep:serde_json"]
+std = ["serde/std", "dep:serde_json", "dep:varisat"]
 
 [dependencies]
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
 serde_json = { version = "1", optional = true, features = ["preserve_order"] }
+varisat = { version = "0.2.2", optional = true }
 
 [dev-dependencies]
 serde_json = { version = "1", features = ["preserve_order"] }

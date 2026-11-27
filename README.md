@@ -22,6 +22,7 @@ This crate is the Rust port of the engine behind
 | `ctl` | Branching-time (CTL) checking: `EF`, `AG`, `EX`, `E[.. U ..]` via fixpoint labelling — exact on finite models, never `incomplete` |
 | `sweep` | Depth sweeps: the model-check verdict at every prefix bound `1..=|states|` — `incomplete` as a progression, not a verdict |
 | `replay` | Finite replays of infinite counterexamples: unroll a lasso until LTLf still rejects it — a pasteable regression test |
+| `sat` | SAT-backed bounded model checking (varisat): one-hot lasso encoding, shortest-first counterexamples, same `holds` bar as `model_check` — re-verified through the evaluator before reporting |
 | `concepts` | The field guide: eleven chapters of explanation for agent-facing tooling |
 | `fm` (bin) | CLI front-end with one subcommand per capability, JSON in → JSON out |
 
@@ -47,6 +48,7 @@ cargo install --path .
 fm check_ltl        '{"formula":"G (request -> F response)","trace":[["request"],["timeout"]]}'
 fm monitor_ltl      '{"formula":"G (a -> F b)","trace":[["a"],["b"]]}'
 fm model_check      '{"formula":"G (coin -> F dispense)","model":{...}}'
+fm sat_check        '{"formula":"G (coin -> F dispense)","model":{...}}'  # SAT backend
 fm ctl_check        '{"formula":"AG (coin -> AF vend)","model":{...}}'
 fm analyze_depth    '{"formula":"G (coin -> F dispense)","model":{...}}'
 fm falsify_property '{"formula":"G (a -> F b)","atoms":["a","b"],"seed":42,"guided":true}'

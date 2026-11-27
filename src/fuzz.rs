@@ -52,6 +52,12 @@ pub struct FalsifyOptions {
     /// corpus entries. Biases exploration toward state combinations not
     /// yet tried — novelty seeking over the 2^|atoms| space.
     pub guided: Option<bool>,
+    /// Per-atom emission probability for freshly generated traces,
+    /// replacing the default ½. Clamped to [0, 1]. Opt-in extension (the
+    /// TS engine has no such knob): `None` keeps the bit-identical
+    /// campaign; a low density makes `F rare`-style violations reachable
+    /// on longer traces; a high density probes near-always atoms.
+    pub atom_density: Option<f64>,
 }
 
 /// Seed used when `FalsifyOptions::seed` is `None`. With `std`, derived
@@ -279,6 +285,7 @@ pub fn falsify(formula: &Formula, atoms: &[String], opts: &FalsifyOptions) -> Fa
     let seed = opts.seed.unwrap_or_else(default_seed);
     let mut rng = Mulberry32::new(seed);
     let guided = opts.guided.unwrap_or(false);
+    let density = opts.atom_density.unwrap_or(0.5).clamp(0.0, 1.0);
 
     // Coverage corpus: traces that each introduced an unseen signature.
     let mut seen: BTreeSet<String> = BTreeSet::new();
@@ -289,7 +296,7 @@ pub fn falsify(formula: &Formula, atoms: &[String], opts: &FalsifyOptions) -> Fa
         for _ in 0..length {
             let mut state = crate::ltl::State::new();
             for a in atoms {
-                if rng.next_f64() < 0.5 {
+                if rng.next_f64() < density {
                     state.insert(a.clone());
                 }
             }

@@ -10,12 +10,14 @@ formalmethods (lib)
 ├── ctl        branching-time CTL checking      (src/ctl.rs)       [std]
 ├── sweep      depth-sweep: verdict per bound   (src/sweep.rs)     [std]
 ├── replay     finite replays of lasso CEs      (src/replay.rs)    [std]
+├── sat        SAT-backed bounded checking      (src/sat.rs)       [std]
 ├── concepts   the field guide (prose data)    (src/concepts.rs)
 └── fm (bin)   JSON CLI over the same engine   (src/bin/fm.rs)     [std]
 ```
 
 `model`, `monitor`, and `mutate` depend on `ltl`; `mutate`, `ctl`,
-`sweep`, and `replay` depend on `model`; `concepts` is standalone data;
+`sweep`, `replay`, and `sat` depend on `model`; `sat` additionally
+depends on `varisat` (std-only dep); `concepts` is standalone data;
 `fm` depends on everything.
 Nothing else couples the modules — the engine is pure functions over
 plain data.
@@ -115,6 +117,19 @@ plain data.
   needs infinity itself. Turns a model-check counterexample into a
   pasteable regression test.
 
+## `sat` *(std)*
+
+- `sat_check` — bounded model checking via varisat: a symbolic alternative
+  to `model_check`'s DFS when models grow. One-hot encoding `x[i][s]` =
+  "position `i` is state `s`"; a lasso is positions `0..=k` with back-edge
+  `k → l`; one CNF per (length, loop-start) pair at increasing length.
+- Formula evaluation is encoded over the same decisive window
+  `eval_periodic_at` uses, so `U`/`W`/`R`/`F`/`G` expand to flat
+  disjunctions of conjunctions — Tseitin vars only, no fixed-point
+  gadgets. Found lassos are re-verified through `eval_periodic_at`
+  before being reported.
+- Verdict bar identical to `model_check`: `holds` needs `depth ≥ |states|`.
+
 ## `concepts`
 
 Static `&'static` data — the same eleven chapters the TypeScript lab
@@ -126,18 +141,18 @@ doing-guide, served verbatim by `fm read_skills_guide`.
 
 ## Dependencies
 
-`serde` + `serde_json` only. The engine itself is dependency-light by
-design; JSON is the interchange format (models in, results out), matching
-the sibling project's MCP tool schemas.
+`serde` + `serde_json` + `varisat` (std-only). The engine itself is
+dependency-light by design; JSON is the interchange format (models in,
+results out), matching the sibling project's MCP tool schemas.
 
 ### Feature split (`std`)
 
 - **default = `std`**: everything above, plus `serde_json` for the CLI's
-  JSON plumbing.
+  JSON plumbing and `varisat` for `sat`.
 - **`--no-default-features`**: `no_std` + `alloc` core — `ltl`, `monitor`,
   `concepts`, `fuzz`. `model` and everything built on it (`mutate`, `ctl`,
-  `sweep`, `replay`) plus the `fm` bin are `std`-gated (`Instant`,
-  `HashMap`, `serde_json::Value`). `serde` is configured
+  `sweep`, `replay`, `sat`) plus the `fm` bin are `std`-gated (`Instant`,
+  `HashMap`, `serde_json::Value`, `varisat`). `serde` is configured
   `default-features = false` with `alloc`, so serde impls exist in both
   configurations.
 

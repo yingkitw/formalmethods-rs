@@ -24,8 +24,8 @@ use formalmethods::{
     analyze_coverage, analyze_depth, analyze_spec_coverage, counterexample_run, ctl_check,
     falsify, falsifying_window, get_concept, concept_index, model_check, monitor_trace,
     mutation_report, parse_ctl, parse_kripke, parse_ltl, presets, print_ctl, print_ltl,
-    satisfies_trace, truth_table, validate_kripke, FalsifyOptions, KripkeSpec,
-    ModelCheckOptions, State, Trace, SKILLS_GUIDE,
+    sat_check, satisfies_trace, truth_table, validate_kripke, FalsifyOptions, KripkeSpec,
+    ModelCheckOptions, SatOptions, State, Trace, SKILLS_GUIDE,
 };
 use serde_json::{Value, json};
 
@@ -39,6 +39,7 @@ tools:
   check_ltl         evaluate an LTL formula on a finite trace (LTLf)
   monitor_ltl       monitor a formula state-by-state, residual obligation per step
   model_check       model check a formula against a Kripke structure
+  sat_check         SAT-backed bounded model check (one-hot lasso encoding)
   ctl_check         check a CTL formula (EF/AG/E[.. U ..]/...) over the state graph
   analyze_depth     the same model check re-run at every prefix depth
   mutation_report   spec-coverage: mutate the model, re-check the formula suite
@@ -216,6 +217,37 @@ fn main() -> ExitCode {
                 obj.insert("counterexamples".into(), json!(ces));
                 Ok(out)
             }
+            "sat_check" => {
+                let formula = as_formula(req(&args, "formula")?)?;
+                let (model, warnings) = resolve_model(&args)?;
+                let result = sat_check(
+                    &formula,
+                    &model,
+                    &SatOptions {
+                        depth: as_usize(args.get("depth"), "depth")?,
+                    },
+                );
+                let mut out = serde_json::to_value(&result).map_err(|e| e.to_string())?;
+                let obj = out.as_object_mut().unwrap();
+                obj.insert("semantics".into(), "infinite-run (lasso), SAT one-hot encoding — dead ends stutter".into());
+                obj.insert("formula".into(), print_ltl(&formula).into());
+                obj.insert("model_warnings".into(), json!(warnings));
+                if let Some(ce) = &result.counterexample {
+                    let run = counterexample_run(&model, ce);
+                    obj.insert(
+                        "counterexample".into(),
+                        json!({
+                            "path": ce.path,
+                            "cycle_start": ce.cycle_start,
+                            "prefix": &ce.path[..ce.cycle_start],
+                            "cycle": &ce.path[ce.cycle_start..],
+                            "replay": falsifying_window(&formula, &run, &[]),
+                            "truth_table": ce.window.table,
+                        }),
+                    );
+                }
+                Ok(out)
+            }
             "monitor_ltl" => {
                 let formula = as_formula(req(&args, "formula")?)?;
                 let trace = as_trace(req(&args, "trace")?, "trace")?;
@@ -345,6 +377,7 @@ fn main() -> ExitCode {
                             as_u64(v, "seed").map(|n| n as u32)
                         }).transpose()?,
                         guided: args.get("guided").and_then(|v| v.as_bool()),
+                        atom_density: args.get("atom_density").and_then(|v| v.as_f64()),
                     },
                 );
                 Ok(json!({

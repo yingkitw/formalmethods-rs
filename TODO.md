@@ -83,6 +83,16 @@
 - [x] `gen_formula` — randltl-style random formula generator (Spot
       parity); 400-seed parse∘print round-trip property guards the whole
       grammar, past-time ops included
+- [x] `atom_density` — opt-in trace-side bias in `falsify` (user-approved
+      mature-module edit); `None` keeps the bit-identical ½ campaign
+- [x] `sat` — SAT-backed bounded model checking via `varisat` (std-only
+      dep, user-approved): one-hot `x[i][s]` encoding, formula evaluated
+      over the `eval_periodic_at` decisive window (flat expansions, no
+      cyclic definitions); one CNF per (length, loop-start) at increasing
+      length → shortest counterexamples; found lassos re-verified through
+      `eval_periodic_at`; same `holds` bar as `model_check`; `fm
+      sat_check` wired. Verified by a 60-case cross-engine agreement
+      battery (20 formulas × 3 presets)
 
 ## Next
 
@@ -90,15 +100,12 @@
 
 ## Brainstorming (from competitive intel)
 
-- Trace-side atom bias in `falsify` (non-uniform p per atom/position —
-  e.g. sparse traces so `F rare` violations are reachable); lives inside
-  mature `fuzz.rs`, needs explicit approval; alphabet restriction already
-  done via the caller's `atoms`
-- SAT/SMT-backed bounded checking for bigger models (e.g. via `varisat`);
-  needs a dependency decision — conflicts with the serde-only footprint
 - `approaches`-style worked examples (per-language onboarding: native code
   → artifact → LTL mapping); TS ships it as website content — a Rust
   version would be doc examples, not an engine module
+- Differential fixtures: generate (formula, trace, verdict) triples from
+  the TS engine as golden files, replay them in tests — direct parity
+  evidence rather than mirrored test structure
 
 ## Scorecard
 
@@ -151,3 +158,17 @@ policy prefers tests over rewrites).
 `with_child` collapse; residual dense spots (`sat_set`, `apply`) are
 test-covered per the mature-module policy. Remaining candidates all
 need a user decision (mature-module edit or a new dependency).
+## Scorecard — 2026-11-22 (pass 3)
+
+| Dimension | Score | Evidence |
+|---|---|---|
+| Correctness & coverage | 5 | 116 tests; SAT encoding validated by a 60-case verdict-agreement battery vs `model_check` (20 formulas × 3 presets, every grammar construct) |
+| Formal fidelity | 5 | SAT found lassos re-verified through `eval_periodic_at` before reporting; dead-end stutter + past-op windows match the explicit checker |
+| Maintainability | 5 | `sat.rs` is one encoder + one driver loop, flat Tseitin helpers; `atom_density` is a single substitution point in `fresh` |
+| Docs alignment | 5 | SPEC (sat section + tool list), ARCHITECTURE (module map + dep note), README, MEMORY harvested same-pass |
+| Wiring & ergonomics | 5 | `sat_check` in `fm` with preset support and MCP-shaped counterexample; `atom_density` exposed as a `falsify_property` arg |
+| Footprint | 4 | `varisat` added (user-approved, std-only — no_std core remains dep-light); `atom_density` is free |
+
+**Total: 29/30** — footprint dips to 4 by design: `varisat` is the only
+non-serde dependency and it stays outside the `no_std` core. Residual
+brainstorming is content-level (worked examples, differential fixtures).

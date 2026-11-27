@@ -110,6 +110,21 @@ Options: `depth`, `path_budget` (default 20 000), `max_counterexamples`
 
 No code path may report `holds` unless the enumeration was exhaustive.
 
+### SAT checking (`sat_check`, Rust-only extension)
+
+`sat_check(formula, spec, {depth})` encodes bounded lasso checking as SAT
+(varisat) instead of explicit enumeration: one-hot position vars
+`x[i][s]`, exactly-one + init + transition clauses (dead ends stutter,
+same as `model_check`), and the formula evaluated symbolically over the
+decisive window `eval_periodic_at` uses — `U`/`W`/`R`/`F`/`G` become flat
+disjunctions of conjunctions, so no cyclic definitions. One CNF per
+(length, loop-start) pair, solved at increasing length; the first SAT
+instance is the shortest counterexample and is **re-verified through
+`eval_periodic_at`** before being reported. `holds` carries the same
+bar as `model_check` (`depth ≥ |states|`); shallower → `incomplete`.
+Counterexample paths may differ from `model_check` (shortest-first vs
+DFS order); verdicts may not.
+
 ## Falsification (`falsify`)
 
 Random traces of `length` positions (default 6, max 64), each atom
@@ -136,6 +151,11 @@ compose it on the returned counterexample.
 (randltl-style, depth-bounded, whole grammar including past-time
 operators) — for round-trip fuzzing and conjuring random properties
 to probe a spec with.
+
+`atom_density` (opt-in extension, `None` = the bit-identical ½ campaign):
+per-atom emission probability for freshly generated traces, clamped to
+`[0, 1]`. Low densities make `F rare`-style violations reachable on
+longer traces.
 
 ## Runtime monitoring (`Monitor`)
 
@@ -229,8 +249,8 @@ counterexample.
 
 `fm <tool> '<json-args>'` → JSON result on stdout, exit non-zero on error.
 Pass `-` as the args to read the JSON object from stdin (pipe-friendly).
-Tools: `check_ltl`, `monitor_ltl`, `model_check`, `ctl_check`,
-`analyze_depth`, `mutation_report`, `analyze_spec_coverage`,
+Tools: `check_ltl`, `monitor_ltl`, `model_check`, `sat_check`,
+`ctl_check`, `analyze_depth`, `mutation_report`, `analyze_spec_coverage`,
 `falsify_property`, `analyze_coverage`, `explain_concept`,
 `read_skills_guide` — argument shapes mirror the sibling project's MCP
 tools. `read_skills_guide` takes no args and returns `{path, source,
