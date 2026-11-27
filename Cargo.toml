@@ -33,3 +33,7 @@ required-features = ["std"]
 [[example]]
 name = "vending"
 required-features = ["std"]
+
+[[example]]
+name = "from_code"
+required-features = ["std"]

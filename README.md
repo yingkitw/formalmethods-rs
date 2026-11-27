@@ -85,7 +85,8 @@ Every answer is labelled with exactly what it proves:
 ```sh
 cargo build
 cargo test            # engine tests (parser, both semantics, checker, fuzzer)
-cargo run --example vending   # end-to-end tour
+cargo run --example vending    # end-to-end tour
+cargo run --example from_code  # worked example: lift a Rust state machine into a model
 cargo clippy --all-targets    # lint-clean
 
 # no_std core: ltl + monitor + concepts + fuzz (needs alloc)

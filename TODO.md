@@ -99,6 +99,11 @@
       also exercise the serde shape). `tests/differential.rs` replays
       `eval_at`/`satisfies_periodic`/`model_check` on every row —
       ~50/50 verdict split, zero mismatches
+- [x] `examples/from_code.rs` — the `approaches.ts` methodology as
+      runnable Rust: a plain state machine mechanically lifted into a
+      `KripkeSpec` (states → nodes, (state, event) outcomes → edges),
+      checked healthy vs coin-eating variants, plus an LTLf falsify.
+      The artifact is derived, never transcribed — it can't drift
 
 ## Next
 
@@ -106,9 +111,6 @@
 
 ## Brainstorming (from competitive intel)
 
-- `approaches`-style worked examples (per-language onboarding: native code
-  → artifact → LTL mapping); TS ships it as website content — a Rust
-  version would be doc examples, not an engine module
 - Periodic regeneration of the differential fixture when the TS engine
   changes (or a CI hook into the sibling repo)
 
