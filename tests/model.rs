@@ -175,4 +175,22 @@ mod coverage_tests {
             ["ghost"]
         );
     }
+
+    #[test]
+    fn flags_undeclared_transitions_taken_by_traces() {
+        let (model, _) = parse_kripke(&vending()).unwrap();
+        // idle -> vend is not a declared transition, but both endpoints exist.
+        let r = analyze_coverage(&model, &[ids(&["idle", "vend"])]);
+        assert_eq!(r.unknown_transitions, ["idle -> vend"]);
+    }
+
+    #[test]
+    fn includes_edges_touching_unknown_states() {
+        // TS parity: every taken edge not in the declared set is unknown —
+        // even when an endpoint is itself an unknown state.
+        let (model, _) = parse_kripke(&vending()).unwrap();
+        let r = analyze_coverage(&model, &[ids(&["idle", "ghost", "paid"])]);
+        assert_eq!(r.unknown_transitions, ["ghost -> paid", "idle -> ghost"]);
+        assert_eq!(r.unknown_states, ["ghost"]);
+    }
 }

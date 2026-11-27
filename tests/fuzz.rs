@@ -17,6 +17,7 @@ mod falsify_tests {
                 seed: Some(424242),
                 iterations: Some(200),
                 length: Some(6),
+                ..Default::default()
             },
         );
         assert!(r.violated);
@@ -31,6 +32,7 @@ mod falsify_tests {
             seed: Some(99),
             iterations: Some(100),
             length: Some(6),
+            ..Default::default()
         };
         let a = falsify(&f, &atoms(&["request", "response"]), &opts);
         let b = falsify(&f, &atoms(&["request", "response"]), &opts);
@@ -51,6 +53,98 @@ mod falsify_tests {
         );
         assert!(!r.violated);
         assert_eq!(r.tried, 50);
+    }
+}
+
+mod guided_tests {
+    use super::*;
+
+    #[test]
+    fn reports_coverage_stats_over_the_state_space() {
+        let r = falsify(
+            &parse_ltl("F (a || !a)").unwrap(), // tautology: full campaign runs
+            &atoms(&["a", "b"]),
+            &FalsifyOptions {
+                seed: Some(7),
+                iterations: Some(60),
+                length: Some(4),
+                guided: Some(true),
+            },
+        );
+        let cov = r.coverage.expect("guided campaigns report coverage");
+        assert_eq!(cov.states_possible, Some(4)); // 2^2 atoms
+        assert!(cov.states_seen >= 1 && cov.states_seen <= 4);
+        assert!(cov.corpus_size >= 1 && cov.corpus_size <= 128);
+        assert!(cov.corpus_size <= cov.states_seen);
+    }
+
+    #[test]
+    fn omits_coverage_when_not_guided() {
+        let r = falsify(
+            &parse_ltl("F (a || !a)").unwrap(),
+            &atoms(&["a"]),
+            &FalsifyOptions {
+                seed: Some(7),
+                iterations: Some(10),
+                length: Some(2),
+                ..Default::default()
+            },
+        );
+        assert!(r.coverage.is_none());
+    }
+
+    #[test]
+    fn is_deterministic_from_a_seed() {
+        let opts = FalsifyOptions {
+            seed: Some(31337),
+            iterations: Some(80),
+            length: Some(5),
+            guided: Some(true),
+        };
+        let f = parse_ltl("G (a -> F b)").unwrap();
+        let xs = atoms(&["a", "b", "c"]);
+        let a = falsify(&f, &xs, &opts);
+        let b = falsify(&f, &xs, &opts);
+        assert_eq!(a.violated, b.violated);
+        assert_eq!(a.tried, b.tried);
+        assert_eq!(
+            a.coverage.as_ref().map(|c| c.states_seen),
+            b.coverage.as_ref().map(|c| c.states_seen)
+        );
+    }
+
+    #[test]
+    fn still_falsifies_and_shrinks() {
+        let r = falsify(
+            &parse_ltl("G (a -> b)").unwrap(),
+            &atoms(&["a", "b"]),
+            &FalsifyOptions {
+                seed: Some(424242),
+                iterations: Some(200),
+                length: Some(4),
+                guided: Some(true),
+            },
+        );
+        assert!(r.violated);
+        assert!(r.coverage.is_some());
+        let ce = r.counterexample.unwrap();
+        assert!(ce.iter().any(|s| s.contains("a") && !s.contains("b")));
+    }
+
+    #[test]
+    fn states_possible_is_capped_for_large_alphabets() {
+        let many: Vec<String> = (0..25).map(|i| format!("a{i}")).collect();
+        let r = falsify(
+            &parse_ltl("F (a0 || !a0)").unwrap(),
+            &many,
+            &FalsifyOptions {
+                seed: Some(1),
+                iterations: Some(10),
+                length: Some(2),
+                guided: Some(true),
+            },
+        );
+        assert_eq!(r.coverage.unwrap().states_possible, None);
     }
 }
 

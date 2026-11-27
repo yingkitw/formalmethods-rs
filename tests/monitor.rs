@@ -36,6 +36,19 @@ mod agreement {
             ("a <-> b", trace(&[&["a", "b"], &[]])),
             ("a <-> b", trace(&[&["a"], &[]])),
             ("F (a || !a)", trace(&[&[], &[]])),
+            // The X anchor: `X φ` owes a position that must exist.
+            ("X !a", trace(&[&[]])),          // violated — no next state
+            ("X !a", trace(&[&[], &["b"]])),  // satisfied — next lacks a
+            ("!X a", trace(&[&[]])),          // satisfied — !(no next) is true
+            ("F X !a", trace(&[&[]])),        // violated
+            ("X X a", trace(&[&[], &["a"]])), // violated — pos 2 missing
+            // Past operators evaluate against the consumed history.
+            ("O a", trace(&[&[], &["a"], &[]])),
+            ("H a", trace(&[&["a"], &["a"]])),
+            ("H a", trace(&[&["a"], &[]])),
+            ("Y a", trace(&[&["a"], &[]])),
+            ("a S b", trace(&[&["b"], &["a"], &["a"]])),
+            ("a S b", trace(&[&["b"], &["a"], &[]])),
         ];
         for (src, t) in cases {
             let (_, verdict) = run(src, t.clone());
@@ -90,5 +103,50 @@ mod streaming {
         assert!(!m.is_decided());
         // the obligation is readable: "something must still show b"
         assert_eq!(m.residual().to_string(), "F b");
+    }
+
+    #[test]
+    fn x_residual_keeps_its_anchor() {
+        let mut m = Monitor::new(&parse_ltl("X a").unwrap());
+        m.feed(&Default::default());
+        // "a at the next state, and a next state must exist"
+        assert_eq!(m.residual().to_string(), "a && F true");
+    }
+}
+
+mod batch {
+    use formalmethods::monitor::{MonitorVerdict, monitor_trace};
+
+    use super::*;
+
+    #[test]
+    fn one_residual_row_per_state() {
+        let run = monitor_trace(
+            &parse_ltl("G (request -> F response)").unwrap(),
+            &trace(&[&["request"], &["response"]]),
+        );
+        assert_eq!(run.steps.len(), 2);
+        assert_eq!(run.steps[0].status, MonitorVerdict::Pending);
+        // `F response` owed now; `G` keeps the unrolled original formula
+        assert_eq!(run.steps[0].residual, "F response && G (request -> F response)");
+        assert_eq!(run.steps[1].status, MonitorVerdict::Satisfied);
+        assert!(run.verdict);
+    }
+
+    #[test]
+    fn verdict_matches_satisfies_trace() {
+        for (src, t) in [
+            ("G ok", trace(&[&["ok"], &[]])),
+            ("F done", trace(&[&[], &["done"]])),
+            ("X !a", trace(&[&[]])),
+            ("O a", trace(&[&[], &["a"]])),
+        ] {
+            let f = parse_ltl(src).unwrap();
+            assert_eq!(
+                monitor_trace(&f, &t).verdict,
+                satisfies_trace(&f, &t),
+                "{src}"
+            );
+        }
     }
 }

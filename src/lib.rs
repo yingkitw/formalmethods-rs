@@ -16,12 +16,17 @@
 //!   delta-debugging shrinker.
 //! - [`monitor`] — runtime verification: an incremental monitor that feeds
 //!   on a state stream and decides as early as the verdict is certain.
-//! - [`mutate`] *(std)* — mutation-based specification coverage: does the
-//!   formula suite actually catch a broken model?
+//! - [`mutate`] *(std)* — mutation-based specification coverage, both
+//!   directions: does the formula suite catch a broken model, and does
+//!   the model exercise every clause of the spec?
 //! - [`ctl`] *(std)* — branching-time (CTL) checking: `EF`, `AG`,
 //!   `E[.. U ..]` and friends via fixpoint labelling — exact, never
 //!   `incomplete`.
-//! - [`concepts`] — the field guide: ten chapters of explanation, for
+//! - [`sweep`] *(std)* — depth sweeps: the verdict at every prefix bound,
+//!   so `incomplete` is seen as a progression, not a verdict.
+//! - [`replay`] *(std)* — finite replays of infinite counterexamples:
+//!   unroll a lasso until LTLf still rejects it.
+//! - [`concepts`] — the field guide: eleven chapters of explanation, for
 //!   agent-facing tooling.
 //!
 //! ## Verdict honesty
@@ -55,17 +60,25 @@ pub mod model;
 pub mod monitor;
 #[cfg(feature = "std")]
 pub mod mutate;
+#[cfg(feature = "std")]
+pub mod presets;
+#[cfg(feature = "std")]
+pub mod replay;
+#[cfg(feature = "std")]
+pub mod sweep;
 
 pub use concepts::{CONCEPTS, Concept, ConceptSection, concept_index, get_concept};
 #[cfg(feature = "std")]
 pub use ctl::{CtlFormula, CtlParseError, CtlResult, ctl_check, parse_ctl, print_ctl};
-pub use fuzz::{FalsifyOptions, FalsifyResult, Mulberry32, falsify, shrink_trace};
+pub use fuzz::{
+    FalsifyOptions, FalsifyResult, GuidedCoverage, Mulberry32, falsify, shrink_trace,
+};
 pub use ltl::{
     Formula, LtlParseError, PeriodicTrace, State, Trace, TruthRow, TruthTable, ast_size,
     collect_atoms, eval_at, eval_periodic_at, parse_ltl, periodic_atoms, periodic_truth_table,
     print_ltl, satisfies_periodic, satisfies_trace, subformulas, trace, truth_table,
 };
-pub use monitor::{Monitor, MonitorVerdict};
+pub use monitor::{Monitor, MonitorRun, MonitorStep, MonitorVerdict, monitor_trace};
 #[cfg(feature = "std")]
 pub use model::{
     CounterexampleWindow, CoverageReport, KripkeError, KripkeSpec, KripkeState,
@@ -73,4 +86,12 @@ pub use model::{
     model_check, parse_kripke, validate_kripke,
 };
 #[cfg(feature = "std")]
-pub use mutate::{MutantOutcome, MutantReport, Mutation, MutationReport, mutation_report, mutants};
+pub use mutate::{
+    MutantOutcome, MutantReport, MutantStatus, Mutation, MutationReport, SpecCoverage,
+    SpecCoverageRow, SpecMutant, SpecMutantKind, SpecWitness, analyze_spec_coverage,
+    mutation_report, mutants, operator_mutants, spec_mutants,
+};
+#[cfg(feature = "std")]
+pub use replay::{FalsifyingWindow, counterexample_run, falsifying_window};
+#[cfg(feature = "std")]
+pub use sweep::{DepthRow, DepthSweep, analyze_depth};

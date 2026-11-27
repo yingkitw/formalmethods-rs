@@ -5,10 +5,13 @@
 //!
 //! ```sh
 //! fm check_ltl        '{"formula":"G (request -> F response)","trace":[["request"],["response"]]}'
+//! fm monitor_ltl      '{"formula":"G (a -> F b)","trace":[["a"],["b"]]}'
 //! fm model_check      '{"formula":"G (coin -> F dispense)","model":{...}}'
 //! fm ctl_check        '{"formula":"AG (coin -> AF vend)","model":{...}}'
-//! fm falsify_property '{"formula":"G (a -> F b)","atoms":["a","b"],"seed":42}'
+//! fm analyze_depth    '{"formula":"G (coin -> F dispense)","model":{...}}'
+//! fm falsify_property '{"formula":"G (a -> F b)","atoms":["a","b"],"seed":42,"guided":true}'
 //! fm analyze_coverage '{"model":{...},"traces":[["idle","paid"]]}'
+//! fm analyze_spec_coverage '{"formula":"G (coin -> F dispense)","model":{...}}'
 //! fm explain_concept  '{"concept":"ltl"}'      # or no arg for the index
 //! ```
 //!
@@ -17,9 +20,11 @@
 use std::process::ExitCode;
 
 use formalmethods::{
-    analyze_coverage, ctl_check, falsify, get_concept, concept_index, model_check,
-    mutation_report, parse_ctl, parse_kripke, parse_ltl, print_ctl, print_ltl, satisfies_trace,
-    truth_table, FalsifyOptions, ModelCheckOptions, State, Trace,
+    analyze_coverage, analyze_depth, analyze_spec_coverage, counterexample_run, ctl_check,
+    falsify, falsifying_window, get_concept, concept_index, model_check, monitor_trace,
+    mutation_report, parse_ctl, parse_kripke, parse_ltl, presets, print_ctl, print_ltl,
+    satisfies_trace, truth_table, validate_kripke, FalsifyOptions, KripkeSpec,
+    ModelCheckOptions, State, Trace,
 };
 use serde_json::{Value, json};
 
@@ -31,10 +36,13 @@ usage: fm <tool> [json-args]
 
 tools:
   check_ltl         evaluate an LTL formula on a finite trace (LTLf)
+  monitor_ltl       monitor a formula state-by-state, residual obligation per step
   model_check       model check a formula against a Kripke structure
   ctl_check         check a CTL formula (EF/AG/E[.. U ..]/...) over the state graph
+  analyze_depth     the same model check re-run at every prefix depth
   mutation_report   spec-coverage: mutate the model, re-check the formula suite
-  falsify_property  random-trace falsification with shrinking
+  analyze_spec_coverage  mutate the formula's subformulas, re-check the model
+  falsify_property  random-trace falsification with shrinking (guided=true for coverage-guided)
   analyze_coverage  state/transition coverage of test traces
   explain_concept   the field guide (no arg → index of topics)
 ";
@@ -104,6 +112,26 @@ fn as_formula(v: &Value) -> Result<formalmethods::Formula, String> {
     parse_ltl(as_str(v, "formula")?).map_err(|e| format!("invalid formula: {e}"))
 }
 
+/// `model` object or `preset` name — every model-taking tool accepts
+/// either, like the MCP server.
+fn resolve_model(args: &Value) -> Result<(KripkeSpec, Vec<String>), String> {
+    if let Some(p) = args.get("preset") {
+        let name = p
+            .as_str()
+            .ok_or_else(|| "`preset` must be a string".to_string())?;
+        let mut spec = presets::preset(name).ok_or_else(|| {
+            format!(
+                "unknown preset \"{name}\" — expected one of: {}",
+                presets::preset_names().join(", ")
+            )
+        })?;
+        let warnings = validate_kripke(&mut spec).map_err(|e| e.to_string())?;
+        return Ok((spec, warnings));
+    }
+    let v = req(args, "model").map_err(|_| "missing required `model` (or pass `preset` instead)".to_string())?;
+    parse_kripke(v).map_err(|e| format!("invalid model: {e}"))
+}
+
 fn emit(v: &impl serde::Serialize) -> ExitCode {
     match serde_json::to_string_pretty(v) {
         Ok(s) => {
@@ -143,8 +171,7 @@ fn main() -> ExitCode {
             }
             "model_check" => {
                 let formula = as_formula(req(&args, "formula")?)?;
-                let (model, warnings) =
-                    parse_kripke(req(&args, "model")?).map_err(|e| format!("invalid model: {e}"))?;
+                let (model, warnings) = resolve_model(&args)?;
                 let result = model_check(
                     &formula,
                     &model,
@@ -162,7 +189,103 @@ fn main() -> ExitCode {
                 obj.insert("semantics".into(), "infinite-run (lasso) — dead ends stutter".into());
                 obj.insert("formula".into(), print_ltl(&formula).into());
                 obj.insert("model_warnings".into(), json!(warnings));
+                // Counterexamples in the MCP shape: the lasso split plus a
+                // finite replay (null when the violation needs infinity).
+                let ces: Vec<Value> = result
+                    .counterexamples
+                    .iter()
+                    .map(|ce| {
+                        let run = counterexample_run(&model, ce);
+                        json!({
+                            "path": ce.path,
+                            "cycle_start": ce.cycle_start,
+                            "prefix": &ce.path[..ce.cycle_start],
+                            "cycle": &ce.path[ce.cycle_start..],
+                            "replay": falsifying_window(&formula, &run, &[]),
+                            "truth_table": ce.window.table,
+                        })
+                    })
+                    .collect();
+                obj.insert("counterexamples".into(), json!(ces));
                 Ok(out)
+            }
+            "monitor_ltl" => {
+                let formula = as_formula(req(&args, "formula")?)?;
+                let trace = as_trace(req(&args, "trace")?, "trace")?;
+                let run = monitor_trace(&formula, &trace);
+                Ok(json!({
+                    "semantics": "finite-trace (LTLf), monitor by formula progression",
+                    "formula": run.formula,
+                    "satisfies": run.verdict,
+                    "steps": run.steps,
+                    "notes": if trace.is_empty() {
+                        json!(["empty trace — no states consumed; verdict is the vacuous answer on zero data"])
+                    } else {
+                        json!([])
+                    },
+                }))
+            }
+            "analyze_depth" => {
+                let formula = as_formula(req(&args, "formula")?)?;
+                let (model, warnings) = resolve_model(&args)?;
+                let sweep = analyze_depth(
+                    &formula,
+                    &model,
+                    &ModelCheckOptions {
+                        path_budget: as_usize(args.get("path_budget"), "path_budget")?,
+                        ..Default::default()
+                    },
+                );
+                let mut out = serde_json::to_value(&sweep).map_err(|e| e.to_string())?;
+                let obj = out.as_object_mut().unwrap();
+                obj.insert(
+                    "semantics".into(),
+                    "infinite-run (lasso) — the same check re-run at every prefix depth".into(),
+                );
+                obj.insert("formula".into(), print_ltl(&formula).into());
+                obj.insert("model_warnings".into(), json!(warnings));
+                Ok(out)
+            }
+            "analyze_spec_coverage" => {
+                let formula = as_formula(req(&args, "formula")?)?;
+                let (model, warnings) = resolve_model(&args)?;
+                let report = analyze_spec_coverage(
+                    &formula,
+                    &model,
+                    &ModelCheckOptions {
+                        depth: as_usize(args.get("depth"), "depth")?,
+                        path_budget: as_usize(args.get("path_budget"), "path_budget")?,
+                        ..Default::default()
+                    },
+                    as_usize(args.get("max_mutants"), "max_mutants")?,
+                );
+                let rows: Vec<Value> = report
+                    .mutants
+                    .iter()
+                    .map(|m| {
+                        json!({
+                            "flipped": m.target,
+                            "kind": m.kind,
+                            "mutation": m.mutation,
+                            "verdict": m.verdict,
+                            "status": m.status,
+                            "witness": m.witness,
+                        })
+                    })
+                    .collect();
+                Ok(json!({
+                    "semantics": "infinite-run (lasso) — each subformula mutated (negation / strengthen / operand-drop), model re-checked",
+                    "formula": print_ltl(&formula),
+                    "base_verdict": report.base_verdict,
+                    "score": report.score,
+                    "killed": report.killed,
+                    "survived": report.survived,
+                    "unknown": report.unknown,
+                    "total": report.total,
+                    "mutants": rows,
+                    "model_warnings": warnings,
+                    "notes": report.notes,
+                }))
             }
             "ctl_check" => {
                 let formula = parse_ctl(
@@ -171,8 +294,7 @@ fn main() -> ExitCode {
                         .ok_or("`formula` must be a string")?,
                 )
                 .map_err(|e| format!("CTL parse error: {e}"))?;
-                let (model, warnings) =
-                    parse_kripke(req(&args, "model")?).map_err(|e| format!("invalid model: {e}"))?;
+                let (model, warnings) = resolve_model(&args)?;
                 let result =
                     ctl_check(&model, &formula).map_err(|e| format!("invalid model: {e}"))?;
                 let mut out = serde_json::to_value(&result).map_err(|e| e.to_string())?;
@@ -183,8 +305,7 @@ fn main() -> ExitCode {
                 Ok(out)
             }
             "mutation_report" => {
-                let (model, warnings) =
-                    parse_kripke(req(&args, "model")?).map_err(|e| format!("invalid model: {e}"))?;
+                let (model, warnings) = resolve_model(&args)?;
                 let formulas = req(&args, "formulas")?
                     .as_array()
                     .ok_or("`formulas` must be an array of formula strings")?
@@ -216,6 +337,7 @@ fn main() -> ExitCode {
                         seed: args.get("seed").map(|v| {
                             as_u64(v, "seed").map(|n| n as u32)
                         }).transpose()?,
+                        guided: args.get("guided").and_then(|v| v.as_bool()),
                     },
                 );
                 Ok(json!({
@@ -226,14 +348,15 @@ fn main() -> ExitCode {
                     "iterations": result.iterations,
                     "trace_length": result.length,
                     "seed": result.seed,
+                    "guided": result.coverage.is_some(),
                     "shrink_steps": result.shrink_steps.unwrap_or(0),
                     "counterexample": result.counterexample,
                     "original": result.original,
+                    "coverage": result.coverage,
                 }))
             }
             "analyze_coverage" => {
-                let (model, _warnings) =
-                    parse_kripke(req(&args, "model")?).map_err(|e| format!("invalid model: {e}"))?;
+                let (model, _warnings) = resolve_model(&args)?;
                 let traces = req(&args, "traces")?
                     .as_array()
                     .ok_or("`traces` must be an array of traces")?

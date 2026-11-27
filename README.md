@@ -14,13 +14,15 @@ This crate is the Rust port of the engine behind
 
 | Module | What it is |
 | --- | --- |
-| `ltl` | LTL parser, printer, and **two** evaluators: finite-trace (LTLf) and ultimately-periodic (infinite) semantics, plus truth tables and a serde JSON AST |
+| `ltl` | LTL parser, printer, and **two** evaluators: finite-trace (LTLf) and ultimately-periodic (infinite) semantics — future (`X`/`G`/`F`/`U`/`W`/`R`) **and** past-time (`Y`/`O`/`H`/`S`) operators, plus truth tables and a serde JSON AST |
 | `model` | Kripke structures, lasso-based model checker (exhaustive or depth-bounded), state/transition coverage analysis |
-| `fuzz` | Property-based falsification: seeded random traces (`Mulberry32`) + delta-debugging shrinker |
-| `monitor` | Runtime verification: incremental `Monitor` that consumes a stream of states and decides the moment the verdict is inevitable |
-| `mutate` | Mutation-based spec coverage: inject single faults into the model, re-check the formula suite, report killed vs. surviving mutants |
+| `fuzz` | Property-based falsification: seeded random traces (`Mulberry32`), optional coverage-guided corpus mode, + delta-debugging shrinker |
+| `monitor` | Runtime verification: incremental `Monitor` that consumes a stream of states and decides the moment the verdict is inevitable; `monitor_trace` renders the residual obligation step by step |
+| `mutate` | Mutation-based spec coverage, both directions: inject single faults into the **model** and re-check the formula suite — or mutate the **formula** (negate, strengthen, drop) and re-check the model |
 | `ctl` | Branching-time (CTL) checking: `EF`, `AG`, `EX`, `E[.. U ..]` via fixpoint labelling — exact on finite models, never `incomplete` |
-| `concepts` | The field guide: ten chapters of explanation for agent-facing tooling |
+| `sweep` | Depth sweeps: the model-check verdict at every prefix bound `1..=|states|` — `incomplete` as a progression, not a verdict |
+| `replay` | Finite replays of infinite counterexamples: unroll a lasso until LTLf still rejects it — a pasteable regression test |
+| `concepts` | The field guide: eleven chapters of explanation for agent-facing tooling |
 | `fm` (bin) | CLI front-end with one subcommand per capability, JSON in → JSON out |
 
 ## Library
@@ -43,9 +45,13 @@ assert!(satisfies_trace(&f, &trace(&[&["request"], &["response"]])));
 cargo install --path .
 
 fm check_ltl        '{"formula":"G (request -> F response)","trace":[["request"],["timeout"]]}'
+fm monitor_ltl      '{"formula":"G (a -> F b)","trace":[["a"],["b"]]}'
 fm model_check      '{"formula":"G (coin -> F dispense)","model":{...}}'
-fm falsify_property '{"formula":"G (a -> F b)","atoms":["a","b"],"seed":42}'
+fm ctl_check        '{"formula":"AG (coin -> AF vend)","model":{...}}'
+fm analyze_depth    '{"formula":"G (coin -> F dispense)","model":{...}}'
+fm falsify_property '{"formula":"G (a -> F b)","atoms":["a","b"],"seed":42,"guided":true}'
 fm analyze_coverage '{"model":{...},"traces":[["idle","paid","vend"]]}'
+fm analyze_spec_coverage '{"formula":"G (coin -> F dispense)","model":{...}}'
 fm explain_concept  '{"concept":"ltl"}'     # or no arg for the topic index
 ```
 

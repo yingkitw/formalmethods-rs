@@ -54,6 +54,7 @@ fn main() {
             seed: Some(7),
             iterations: Some(200),
             length: Some(6),
+            ..Default::default()
         },
     );
     println!(

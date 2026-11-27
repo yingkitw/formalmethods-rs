@@ -504,6 +504,9 @@ pub struct CoverageReport {
     pub transition_percent: f64,
     /// State ids appearing in traces but not in the model.
     pub unknown_states: Vec<String>,
+    /// Edges taken in traces that the model does not declare —
+    /// impossible moves, surfaced not dropped.
+    pub unknown_transitions: Vec<String>,
 }
 
 /// Measure state and transition coverage of a set of test traces
@@ -513,6 +516,7 @@ pub fn analyze_coverage(model: &KripkeSpec, traces: &[Vec<String>]) -> CoverageR
     let mut covered_states = BTreeSet::new();
     let mut covered_transitions: HashSet<(&str, &str)> = HashSet::new();
     let mut unknown = BTreeSet::new();
+    let mut taken: BTreeSet<(String, String)> = BTreeSet::new();
 
     for trace in traces {
         for id in trace {
@@ -524,6 +528,7 @@ pub fn analyze_coverage(model: &KripkeSpec, traces: &[Vec<String>]) -> CoverageR
         }
         for pair in trace.windows(2) {
             let (from, to) = (pair[0].as_str(), pair[1].as_str());
+            taken.insert((from.to_string(), to.to_string()));
             if state_ids.contains(from) && state_ids.contains(to) {
                 covered_transitions.insert((from, to));
             }
@@ -551,6 +556,14 @@ pub fn analyze_coverage(model: &KripkeSpec, traces: &[Vec<String>]) -> CoverageR
         .copied()
         .filter(|&(f, t)| !covered_transitions.contains(&(f, t)))
         .collect();
+    let declared: BTreeSet<(String, String)> = all_transitions
+        .iter()
+        .map(|(f, t)| (f.to_string(), t.to_string()))
+        .collect();
+    let unknown_transitions: Vec<String> = taken
+        .difference(&declared)
+        .map(|(f, t)| format!("{f} -> {t}"))
+        .collect();
 
     let state_percent = if model.states.is_empty() {
         100.0
@@ -572,5 +585,6 @@ pub fn analyze_coverage(model: &KripkeSpec, traces: &[Vec<String>]) -> CoverageR
             covered.len() as f64 / all_transitions.len() as f64 * 100.0
         },
         unknown_states: unknown.into_iter().collect(),
+        unknown_transitions,
     }
 }

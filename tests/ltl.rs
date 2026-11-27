@@ -33,6 +33,95 @@ mod parser {
         assert!(parse_ltl("a @ b").unwrap_err().to_string().contains("offset"));
         assert!(parse_ltl("").is_err());
     }
+
+    #[test]
+    fn parses_the_past_time_operators_and_prints_them_back() {
+        assert_eq!(print_ltl(&parse_ltl("Y p").unwrap()), "Y p");
+        assert_eq!(print_ltl(&parse_ltl("O p").unwrap()), "O p");
+        assert_eq!(print_ltl(&parse_ltl("H p").unwrap()), "H p");
+        assert_eq!(print_ltl(&parse_ltl("p S q").unwrap()), "p S q");
+        // shares level 5 with U/W/R, left-associative
+        assert_eq!(print_ltl(&parse_ltl("p S q U r").unwrap()), "p S q U r");
+        // unary args wrap, like X (F p)
+        assert_eq!(print_ltl(&parse_ltl("X O p").unwrap()), "X (O p)");
+    }
+
+    #[test]
+    fn past_operators_are_reserved_but_atoms_may_contain_their_letters() {
+        assert!(parse_ltl("S").unwrap_err().to_string().contains("place it between"));
+        assert!(parse_ltl("Y").unwrap_err().to_string().contains("end of formula"));
+        assert!(parse_ltl("p U S").unwrap_err().to_string().contains("place it between"));
+        let atoms: Vec<String> = collect_atoms(&parse_ltl("yes && Old && S2").unwrap())
+            .into_iter()
+            .collect();
+        assert_eq!(atoms, ["Old", "S2", "yes"]);
+    }
+}
+
+mod past_semantics {
+    use super::*;
+
+    #[test]
+    fn y_looks_one_step_back_and_fails_at_zero() {
+        let t = trace(&[&["p"], &[]]);
+        assert!(!eval_at(&parse_ltl("Y p").unwrap(), &t, 0));
+        assert!(eval_at(&parse_ltl("Y p").unwrap(), &t, 1));
+        assert!(!eval_at(&parse_ltl("Y p").unwrap(), &trace(&[&["q"], &["p"]]), 1));
+    }
+
+    #[test]
+    fn o_finds_a_witness_anywhere_in_the_past_including_now() {
+        let t = trace(&[&["p"], &[], &[]]);
+        assert!(eval_at(&parse_ltl("O p").unwrap(), &t, 0));
+        assert!(eval_at(&parse_ltl("O p").unwrap(), &t, 2));
+        assert!(!eval_at(&parse_ltl("O p").unwrap(), &trace(&[&[], &[]]), 1));
+    }
+
+    #[test]
+    fn h_requires_the_atom_at_every_step_so_far() {
+        assert!(eval_at(&parse_ltl("H p").unwrap(), &trace(&[&["p"], &["p"], &["p"]]), 2));
+        assert!(!eval_at(&parse_ltl("H p").unwrap(), &trace(&[&["p"], &[]]), 1));
+        // NOT vacuous like G: the past includes position 0 itself, where
+        // the atom is false on an empty trace
+        assert!(!satisfies_trace(&parse_ltl("H p").unwrap(), &trace(&[])));
+    }
+
+    #[test]
+    fn s_needs_a_past_trigger_with_the_left_side_held_ever_since() {
+        let t = trace(&[&["q"], &["p"], &["p"]]);
+        assert!(eval_at(&parse_ltl("p S q").unwrap(), &t, 1));
+        assert!(eval_at(&parse_ltl("p S q").unwrap(), &t, 2));
+        // trigger right now
+        assert!(eval_at(&parse_ltl("p S q").unwrap(), &trace(&[&["p"], &["q"]]), 1));
+        // lapse after trigger
+        assert!(!eval_at(&parse_ltl("p S q").unwrap(), &trace(&[&["q"], &["p"], &[]]), 2));
+        // trigger never came
+        assert!(!eval_at(&parse_ltl("p S q").unwrap(), &trace(&[&["p"], &["p"]]), 1));
+    }
+
+    #[test]
+    fn past_ops_see_concrete_history_on_periodic_runs() {
+        let pt = PeriodicTrace {
+            prefix: trace(&[&["q"]]),
+            cycle: trace(&[&[], &["p"]]), // 0=q, 1=∅, 2=p, 3=∅, 4=p…
+        };
+        assert!(eval_periodic_at(&parse_ltl("O q").unwrap(), &pt, 4)); // q lives in the prefix
+        assert!(!eval_periodic_at(&parse_ltl("H p").unwrap(), &pt, 4));
+        assert!(!eval_periodic_at(&parse_ltl("Y p").unwrap(), &pt, 2)); // index 1 was ∅
+        assert!(eval_periodic_at(&parse_ltl("Y p").unwrap(), &pt, 3)); // index 2 was p
+    }
+
+    #[test]
+    fn empty_cycle_reads_as_stuttering_the_last_prefix_state() {
+        use formalmethods::periodic_atoms;
+        let pt = PeriodicTrace {
+            prefix: trace(&[&["a"], &["b"]]),
+            cycle: vec![],
+        };
+        assert_eq!(periodic_atoms(&pt, 1), &trace(&[&["b"]])[0]);
+        // beyond the end: stutters `b` — and must not panic
+        assert_eq!(periodic_atoms(&pt, 5), &trace(&[&["b"]])[0]);
+    }
 }
 
 mod truth_tables {
@@ -289,7 +378,7 @@ mod serde_tests {
     #[test]
     fn rejects_unknown_kinds() {
         assert!(serde_json::from_value::<formalmethods::Formula>(
-            json!({"kind": "yesterday", "arg": {"kind": "atom", "name": "a"}})
+            json!({"kind": "tomorrow", "arg": {"kind": "atom", "name": "a"}})
         )
         .is_err());
         assert!(serde_json::from_value::<formalmethods::Formula>(json!({"kind": "atom"})).is_err());

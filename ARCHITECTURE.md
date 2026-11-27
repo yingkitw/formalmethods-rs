@@ -8,24 +8,29 @@ formalmethods (lib)
 ├── monitor    runtime monitoring (progression) (src/monitor.rs)
 ├── mutate     mutation-based spec coverage     (src/mutate.rs)    [std]
 ├── ctl        branching-time CTL checking      (src/ctl.rs)       [std]
+├── sweep      depth-sweep: verdict per bound   (src/sweep.rs)     [std]
+├── replay     finite replays of lasso CEs      (src/replay.rs)    [std]
 ├── concepts   the field guide (prose data)    (src/concepts.rs)
 └── fm (bin)   JSON CLI over the same engine   (src/bin/fm.rs)     [std]
 ```
 
-`model`, `monitor`, and `mutate` depend on `ltl`; `mutate` and `ctl`
-depend on `model`; `concepts` is standalone data; `fm` depends on
-everything.
+`model`, `monitor`, and `mutate` depend on `ltl`; `mutate`, `ctl`,
+`sweep`, and `replay` depend on `model`; `concepts` is standalone data;
+`fm` depends on everything.
 Nothing else couples the modules — the engine is pure functions over
 plain data.
 
 ## `ltl`
 
-- `Formula` — the AST (`Box`ed enum). `parse_ltl` is a recursive-descent
+- `Formula` — the AST (`Box`ed enum): future operators `X`/`G`/`F`/`U`/`W`/`R`
+  and past-time `Y`/`O`/`H`/`S`. `parse_ltl` is a recursive-descent
   parser over a hand-rolled tokenizer; `print_ltl`/`Display` round-trips.
 - `Trace = Vec<State>`, `State = BTreeSet<String>`; `PeriodicTrace` is
   `prefix` + `cycle` for infinite runs.
 - Two evaluators: `eval_at` (LTLf, finite) and `eval_periodic_at`
-  (ultimately periodic — one full cycle window decides F/G/U).
+  (ultimately periodic — one full cycle window decides F/G/U). Past
+  operators evaluate the unrolled positions `0..=i` — inside the loop the
+  past includes earlier iterations.
 - `truth_table` / `periodic_truth_table` evaluate every deduplicated
   subformula at every position — the teaching aid and counterexample
   renderer. `bad_positions` = where the run sins.
@@ -45,6 +50,11 @@ plain data.
   identical campaigns across both engines.
 - `falsify` — random-trace campaign; `shrink_trace` — greedy
   delta-debugging (drop positions, then atoms) while still violating.
+- `guided: true` — coverage-guided mode: a novelty corpus (state
+  signatures, cap 128) plus `mutate_trace` (drop/duplicate/toggle) drives
+  generation; the result reports `states_seen`/`states_possible`/
+  `corpus_size`. The fresh-trace draw runs every iteration regardless —
+  keeps the RNG stream aligned with the TS engine.
 
 ## `monitor`
 
@@ -52,17 +62,31 @@ plain data.
   `feed(state)` rewrites the residual obligation (residuals stay bare —
   `P(G φ, s) = P(φ, s) ∧ G φ`, never X-wrapped), returns
   `MonitorVerdict::{Satisfied, Violated, Pending}`; terminal verdicts are
-  sticky. `close()` must agree with `satisfies_trace` — enforced by a
-  test battery.
+  sticky. The consumed prefix is kept as history so past operators
+  resolve at each step; `X` residuals carry an `F true` anchor — "a next
+  position must exist" — so `X !a` on a one-state log closes as violated.
+  `close()` must agree with `satisfies_trace` — enforced by a test
+  battery.
+- `monitor_trace` — batch form: the same progression rendered as one
+  `MonitorStep` per state `{position, atoms, residual, status}`;
+  statuses serialize as the TS wire names `met`/`broken`/`owed`.
 
 ## `mutate` *(std)*
 
-- `mutants` — enumerate single-point faults: `Unlabel` (drop an atom),
-  `Relabel` (add a declared atom), `Detransition` (drop an edge).
-- `mutation_report` — validate each mutant, re-run the formula suite
-  exhaustively; `Killed` on the first `violated`, `SurvivedIncomplete`
-  when a check was truncated (verdict honesty applies to mutants too),
-  kill rate over valid mutants.
+- Model mutants: `mutants` enumerates single-point faults — `Unlabel`
+  (drop an atom), `Relabel` (add a declared atom), `Detransition` (drop
+  an edge). `mutation_report` validates each mutant and re-runs the
+  formula suite exhaustively; `Killed` on the first `violated`,
+  `SurvivedIncomplete` when a check was truncated (verdict honesty
+  applies to mutants too), kill rate over valid mutants.
+- Formula mutants: `spec_mutants` negates each node position;
+  `operator_mutants` applies only strictly-stronger/incomparable
+  transforms (`F→G`, `W→U`, `∨→∧`, `∨→operand`, `O→H`, `X→arg`) — a
+  transform the original entails could only survive, i.e. report noise.
+  `analyze_spec_coverage` re-checks each against the model and scores
+  `killed/total` — meaningful only when the base verdict is `holds`.
+- Positions are tracked as child-index paths (`paths_of`, `replace_at`)
+  so identical subformulas at different positions get distinct mutants.
 
 ## `ctl` *(std)*
 
@@ -76,11 +100,27 @@ plain data.
   models — verdict is `holds` iff every initial state is in the set,
   never `incomplete`.
 
+## `sweep` *(std)*
+
+- `analyze_depth` — re-runs `model_check` at every prefix depth
+  `1..=|states|`; rows carry `verdict`/`complete`/`checked_lassos`, the
+  sweep reports `first_violation_at` (monotone) and `conclusive`. Makes
+  `incomplete` visible as a progression, not a verdict.
+
+## `replay` *(std)*
+
+- `counterexample_run` — lasso → `PeriodicTrace` (state ids → atoms).
+- `falsifying_window` — unroll prefix + whole loops (default reps
+  `[2,3,4,6,8]`) until LTLf still rejects it; `None` when the violation
+  needs infinity itself. Turns a model-check counterexample into a
+  pasteable regression test.
+
 ## `concepts`
 
-Static `&'static` data — the same ten chapters the TypeScript lab serves,
-reworded only where it says "this lab". Powers `fm explain_concept` and any
-agent-facing surface built on the crate.
+Static `&'static` data — the same eleven chapters the TypeScript lab
+serves, reworded only where it says "this lab" (and noting our native
+`ctl_check` where the text says the lab answers compositionally). Powers
+`fm explain_concept` and any agent-facing surface built on the crate.
 
 ## Dependencies
 
@@ -93,7 +133,8 @@ the sibling project's MCP tool schemas.
 - **default = `std`**: everything above, plus `serde_json` for the CLI's
   JSON plumbing.
 - **`--no-default-features`**: `no_std` + `alloc` core — `ltl`, `monitor`,
-  `concepts`, `fuzz`. `model` and the `fm` bin are `std`-gated (`Instant`,
+  `concepts`, `fuzz`. `model` and everything built on it (`mutate`, `ctl`,
+  `sweep`, `replay`) plus the `fm` bin are `std`-gated (`Instant`,
   `HashMap`, `serde_json::Value`). `serde` is configured
   `default-features = false` with `alloc`, so serde impls exist in both
   configurations.

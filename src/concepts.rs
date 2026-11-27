@@ -136,6 +136,30 @@ pub static CONCEPTS: &[Concept] = &[
         related: &["bounded-model-checking", "kripke", "coverage"],
     },
     Concept {
+        id: "ctl-vs-ltl",
+        title: "CTL vs LTL: the tree and the line",
+        tagline: "Two ways to quantify runs — and why a log lab speaks the linear dialect.",
+        sections: &[
+            ConceptSection {
+                heading: "Path versus branching",
+                paragraphs: &[
+                    "**LTL** reasons about a *single run*: `G (coin -> F dispense)` asks one question of one sequence — does every coin get answered? **CTL** adds path quantifiers: `A` (all runs) and `E` (some run exists) wrapped around the temporal operators — `AG safe` is an invariant on *every* branch, `EF stuck` says a hang is *reachable*.",
+                    "The questions CTL asks natively, this crate asks both ways: `ctl_check` labels the branching formula directly, while `model_check φ` composes the linear answer — enumerate every lasso of the structure, that is `A φ` for an LTL property. A `violated` verdict's counterexample lasso is the `E !φ` witness, spelled out as a failing run you can replay.",
+                ],
+                bullets: &[],
+            },
+            ConceptSection {
+                heading: "Why the lab speaks LTL",
+                paragraphs: &[
+                    "A CI log is not a tree — it is the one path that actually ran, so trace checking needs no path quantifier at all. That is why `check_ltl` reads plain LTL(f): the universal question belongs to the model checker, the existential one to the counterexample.",
+                    "Write the property once, read it three ways: `check_ltl` on logs, `model_check` as the `A`, a failing lasso as the `E`. The branching-versus-linear distinction collapses into workflow.",
+                ],
+                bullets: &[],
+            },
+        ],
+        related: &["ltl", "model-checking", "bounded-model-checking"],
+    },
+    Concept {
         id: "bounded-model-checking",
         title: "Bounded model checking",
         tagline: "Exhaustive within a budget — the honest middle between proving and testing.",

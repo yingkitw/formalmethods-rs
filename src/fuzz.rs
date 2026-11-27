@@ -6,9 +6,9 @@
 //! seed, so every counterexample is reproducible.
 
 #[cfg(not(feature = "std"))]
-use alloc::{string::String, vec::Vec};
+use alloc::{collections::BTreeSet, string::String, vec::Vec};
 #[cfg(feature = "std")]
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{collections::BTreeSet, time::{SystemTime, UNIX_EPOCH}};
 
 use serde::Serialize;
 
@@ -47,6 +47,11 @@ pub struct FalsifyOptions {
     pub length: Option<usize>,
     /// RNG seed; omit for a nondeterministic one.
     pub seed: Option<u32>,
+    /// Coverage-guided: keep a corpus of traces that each introduced an
+    /// unseen state signature, and generate half the campaign by mutating
+    /// corpus entries. Biases exploration toward state combinations not
+    /// yet tried — novelty seeking over the 2^|atoms| space.
+    pub guided: Option<bool>,
 }
 
 /// Seed used when `FalsifyOptions::seed` is `None`. With `std`, derived
@@ -79,6 +84,22 @@ pub struct FalsifyResult {
     /// The first raw violating trace, before shrinking.
     pub original: Option<Trace>,
     pub shrink_steps: Option<usize>,
+    /// Present when `guided` — how much of the atom-set space the
+    /// campaign touched.
+    pub coverage: Option<GuidedCoverage>,
+}
+
+/// Coverage stats from a guided campaign: the fraction of the 2^|atoms|
+/// state space the corpus actually saw.
+#[derive(Debug, Clone, Serialize)]
+pub struct GuidedCoverage {
+    /// Distinct state signatures seen.
+    pub states_seen: usize,
+    /// 2^|atoms|; `None` when the alphabet is too big for a meaningful
+    /// ratio (>20).
+    pub states_possible: Option<u64>,
+    /// Traces held in the novelty corpus (capped at 128).
+    pub corpus_size: usize,
 }
 
 /// Delta-debug a violating trace down toward something small and readable.
@@ -128,6 +149,32 @@ pub fn shrink_trace(trace: &Trace, formula: &Formula) -> (Trace, usize) {
     (current, steps)
 }
 
+/// One bounded mutation of a corpus trace: drop a position, duplicate
+/// one, or toggle an atom.
+fn mutate_trace(trace: &Trace, atoms: &[String], rng: &mut Mulberry32, length: usize) -> Trace {
+    let mut t = trace.clone();
+    let op = (rng.next_f64() * 3.0) as usize;
+    if op == 0 && t.len() > 1 {
+        t.remove((rng.next_f64() * t.len() as f64) as usize);
+    } else if op == 1 && t.len() < length {
+        let i = (rng.next_f64() * t.len() as f64) as usize;
+        t.insert(i, t[i].clone());
+    } else {
+        let i = (rng.next_f64() * t.len() as f64) as usize;
+        let a = &atoms[(rng.next_f64() * atoms.len() as f64) as usize];
+        if !t[i].remove(a) {
+            t[i].insert(a.clone());
+        }
+    }
+    t
+}
+
+/// A state's novelty signature: its atoms, sorted, comma-joined — the same
+/// canonical form the TS engine uses for the coverage corpus.
+fn signature(state: &crate::ltl::State) -> String {
+    state.iter().cloned().collect::<Vec<_>>().join(",")
+}
+
 /// Property-based testing for LTL: generate random finite traces over the
 /// given atoms, check the formula under LTLf semantics, and shrink the first
 /// violation found.
@@ -139,11 +186,13 @@ pub fn falsify(formula: &Formula, atoms: &[String], opts: &FalsifyOptions) -> Fa
     let length = opts.length.unwrap_or(6).clamp(1, 64);
     let seed = opts.seed.unwrap_or_else(default_seed);
     let mut rng = Mulberry32::new(seed);
+    let guided = opts.guided.unwrap_or(false);
 
-    let mut tried = 0usize;
-    let mut original: Option<Trace> = None;
-    while tried < iterations {
-        tried += 1;
+    // Coverage corpus: traces that each introduced an unseen signature.
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    let mut corpus: Vec<Trace> = Vec::new();
+
+    let fresh = |rng: &mut Mulberry32| -> Trace {
         let mut trace: Trace = Vec::with_capacity(length);
         for _ in 0..length {
             let mut state = crate::ltl::State::new();
@@ -154,11 +203,43 @@ pub fn falsify(formula: &Formula, atoms: &[String], opts: &FalsifyOptions) -> Fa
             }
             trace.push(state);
         }
+        trace
+    };
+
+    let mut tried = 0usize;
+    let mut original: Option<Trace> = None;
+    while tried < iterations {
+        tried += 1;
+        // `fresh` draws unconditionally — even when the trace is then
+        // replaced by a corpus mutation — keeping the RNG stream aligned
+        // with the TS engine bit for bit.
+        let mut trace = fresh(&mut rng);
+        if guided {
+            if !corpus.is_empty() && rng.next_f64() < 0.5 {
+                let pick = (rng.next_f64() * corpus.len() as f64) as usize;
+                trace = mutate_trace(&corpus[pick], atoms, &mut rng, length);
+            }
+            if trace.iter().any(|s| !seen.contains(&signature(s))) {
+                for s in &trace {
+                    seen.insert(signature(s));
+                }
+                corpus.push(trace.clone());
+                if corpus.len() > 128 {
+                    corpus.remove(0);
+                }
+            }
+        }
         if !eval_at(formula, &trace, 0) {
             original = Some(trace);
             break;
         }
     }
+
+    let coverage = guided.then_some(GuidedCoverage {
+        states_seen: seen.len(),
+        states_possible: (atoms.len() <= 20).then(|| 1u64 << atoms.len()),
+        corpus_size: corpus.len(),
+    });
 
     let Some(original) = original else {
         return FalsifyResult {
@@ -170,6 +251,7 @@ pub fn falsify(formula: &Formula, atoms: &[String], opts: &FalsifyOptions) -> Fa
             counterexample: None,
             original: None,
             shrink_steps: None,
+            coverage,
         };
     };
     let (counterexample, steps) = shrink_trace(&original, formula);
@@ -182,5 +264,6 @@ pub fn falsify(formula: &Formula, atoms: &[String], opts: &FalsifyOptions) -> Fa
         counterexample: Some(counterexample),
         original: Some(original),
         shrink_steps: Some(steps),
+        coverage,
     }
 }

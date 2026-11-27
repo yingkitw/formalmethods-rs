@@ -28,11 +28,14 @@ use std::collections::{BTreeMap, BTreeSet};
 /// An LTL formula.
 ///
 /// Binary operators box both sides as `(left, right)`; for [`Until`],
-/// [`Weak`], and [`Release`] the tuple is `(left, right)`.
+/// [`Weak`], [`Release`], and [`Since`] the tuple is `(left, right)`.
+/// Past-time operators (`Yesterday`, `Once`, `Historically`, `Since`)
+/// look backward over the consumed prefix — handy for checking logs.
 ///
 /// [`Until`]: Formula::Until
 /// [`Weak`]: Formula::Weak
 /// [`Release`]: Formula::Release
+/// [`Since`]: Formula::Since
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Formula {
     True,
@@ -46,9 +49,18 @@ pub enum Formula {
     Next(Box<Formula>),
     Globally(Box<Formula>),
     Finally(Box<Formula>),
+    /// `Y` — the argument held at the previous position (false at 0).
+    Yesterday(Box<Formula>),
+    /// `O` — the argument held at some past-or-present position.
+    Once(Box<Formula>),
+    /// `H` — the argument held at every past-or-present position.
+    Historically(Box<Formula>),
     Until(Box<Formula>, Box<Formula>),
     Weak(Box<Formula>, Box<Formula>),
     Release(Box<Formula>, Box<Formula>),
+    /// `l S r` — `r` held at some past-or-present position and `l` held
+    /// at every position strictly since then.
+    Since(Box<Formula>, Box<Formula>),
 }
 
 impl Formula {
@@ -125,7 +137,10 @@ pub struct PeriodicTrace {
 // Parsing
 // ---------------------------------------------------------------------------
 
-const RESERVED: &[&str] = &["X", "G", "F", "U", "W", "R", "true", "false"];
+const RESERVED: &[&str] = &[
+    "X", "G", "F", "U", "W", "R", "Y", "O", "H", "S", "true", "false",
+];
+const UNARY_OPS: &[&str] = &["X", "G", "F", "Y", "O", "H"];
 
 /// An error produced while parsing an LTL formula.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -318,13 +333,14 @@ impl Parser {
 
     fn parse_until(&mut self) -> Result<Formula, LtlParseError> {
         let mut left = self.parse_unary()?;
-        while self.at(&["U", "W", "R"]) {
+        while self.at(&["U", "W", "R", "S"]) {
             let op = self.take()?.t.clone();
             let right = self.parse_unary()?;
             left = match op.as_str() {
                 "U" => Formula::Until(Box::new(left), Box::new(right)),
                 "W" => Formula::Weak(Box::new(left), Box::new(right)),
-                _ => Formula::Release(Box::new(left), Box::new(right)),
+                "R" => Formula::Release(Box::new(left), Box::new(right)),
+                _ => Formula::Since(Box::new(left), Box::new(right)),
             };
         }
         Ok(left)
@@ -351,6 +367,18 @@ impl Parser {
                 self.take()?;
                 Ok(Formula::Finally(Box::new(self.parse_unary()?)))
             }
+            "Y" => {
+                self.take()?;
+                Ok(Formula::Yesterday(Box::new(self.parse_unary()?)))
+            }
+            "O" => {
+                self.take()?;
+                Ok(Formula::Once(Box::new(self.parse_unary()?)))
+            }
+            "H" => {
+                self.take()?;
+                Ok(Formula::Historically(Box::new(self.parse_unary()?)))
+            }
             _ => self.parse_atom(),
         }
     }
@@ -367,9 +395,15 @@ impl Parser {
             "false" => return Ok(Formula::False),
             t if RESERVED.contains(&t) => {
                 return Err(LtlParseError::new(
-                    format!(
-                        "'{t}' is an LTL operator — place it between formulas (e.g. \"a {t} b\")"
-                    ),
+                    if UNARY_OPS.contains(&t) {
+                        format!(
+                            "'{t}' is a prefix LTL operator — put it before a formula (e.g. \"{t} a\")"
+                        )
+                    } else {
+                        format!(
+                            "'{t}' is an LTL operator — place it between formulas (e.g. \"a {t} b\")"
+                        )
+                    },
                     Some(tok.pos),
                 ));
             }
@@ -382,8 +416,8 @@ impl Parser {
 /// Parse an LTL formula.
 ///
 /// Grammar (loosest to tightest binding): `<->`, `->`, `||`, `&&`,
-/// `U`/`W`/`R`, unary `!`/`X`/`G`/`F`, atoms, `true`, `false`,
-/// parenthesised formulas.
+/// `U`/`W`/`R`/`S`, unary `!`/`X`/`G`/`F`/`Y`/`O`/`H`, atoms, `true`,
+/// `false`, parenthesised formulas.
 pub fn parse_ltl(src: &str) -> Result<Formula, LtlParseError> {
     let mut parser = Parser {
         toks: tokenize(src.trim())?,
@@ -402,8 +436,14 @@ fn precedence(f: &Formula) -> u8 {
         Formula::Implies(..) => 2,
         Formula::Or(..) => 3,
         Formula::And(..) => 4,
-        Formula::Until(..) | Formula::Weak(..) | Formula::Release(..) => 5,
-        Formula::Not(..) | Formula::Next(..) | Formula::Globally(..) | Formula::Finally(..) => 6,
+        Formula::Until(..) | Formula::Weak(..) | Formula::Release(..) | Formula::Since(..) => 5,
+        Formula::Not(..)
+        | Formula::Next(..)
+        | Formula::Globally(..)
+        | Formula::Finally(..)
+        | Formula::Yesterday(..)
+        | Formula::Once(..)
+        | Formula::Historically(..) => 6,
         Formula::Atom(_) | Formula::True | Formula::False => 9,
     }
 }
@@ -424,6 +464,9 @@ pub fn print_ltl(f: &Formula) -> String {
             Formula::Next(arg) => wrap(format!("X {}", rec(arg, 7))),
             Formula::Globally(arg) => wrap(format!("G {}", rec(arg, 7))),
             Formula::Finally(arg) => wrap(format!("F {}", rec(arg, 7))),
+            Formula::Yesterday(arg) => wrap(format!("Y {}", rec(arg, 7))),
+            Formula::Once(arg) => wrap(format!("O {}", rec(arg, 7))),
+            Formula::Historically(arg) => wrap(format!("H {}", rec(arg, 7))),
             Formula::And(l, r) => wrap(format!("{} && {}", rec(l, 4), rec(r, 4))),
             Formula::Or(l, r) => wrap(format!("{} || {}", rec(l, 3), rec(r, 3))),
             Formula::Implies(l, r) => wrap(format!("{} -> {}", rec(l, 2), rec(r, 2))),
@@ -431,6 +474,7 @@ pub fn print_ltl(f: &Formula) -> String {
             Formula::Until(l, r) => wrap(format!("{} U {}", rec(l, 5), rec(r, 5))),
             Formula::Weak(l, r) => wrap(format!("{} W {}", rec(l, 5), rec(r, 5))),
             Formula::Release(l, r) => wrap(format!("{} R {}", rec(l, 5), rec(r, 5))),
+            Formula::Since(l, r) => wrap(format!("{} S {}", rec(l, 5), rec(r, 5))),
         }
     }
     rec(f, 0)
@@ -460,9 +504,13 @@ fn kind_name(f: &Formula) -> &'static str {
         Formula::Next(..) => "next",
         Formula::Globally(..) => "globally",
         Formula::Finally(..) => "finally",
+        Formula::Yesterday(..) => "yesterday",
+        Formula::Once(..) => "once",
+        Formula::Historically(..) => "historically",
         Formula::Until(..) => "until",
         Formula::Weak(..) => "weak",
         Formula::Release(..) => "release",
+        Formula::Since(..) => "since",
     }
 }
 
@@ -476,14 +524,18 @@ impl serde::Serialize for Formula {
             Formula::Not(arg)
             | Formula::Next(arg)
             | Formula::Globally(arg)
-            | Formula::Finally(arg) => map.serialize_entry("arg", arg)?,
+            | Formula::Finally(arg)
+            | Formula::Yesterday(arg)
+            | Formula::Once(arg)
+            | Formula::Historically(arg) => map.serialize_entry("arg", arg)?,
             Formula::And(l, r)
             | Formula::Or(l, r)
             | Formula::Implies(l, r)
             | Formula::Iff(l, r)
             | Formula::Until(l, r)
             | Formula::Weak(l, r)
-            | Formula::Release(l, r) => {
+            | Formula::Release(l, r)
+            | Formula::Since(l, r) => {
                 map.serialize_entry("left", l)?;
                 map.serialize_entry("right", r)?;
             }
@@ -509,9 +561,13 @@ enum FormulaJson {
     Next { arg: Box<FormulaJson> },
     Globally { arg: Box<FormulaJson> },
     Finally { arg: Box<FormulaJson> },
+    Yesterday { arg: Box<FormulaJson> },
+    Once { arg: Box<FormulaJson> },
+    Historically { arg: Box<FormulaJson> },
     Until { left: Box<FormulaJson>, right: Box<FormulaJson> },
     Weak { left: Box<FormulaJson>, right: Box<FormulaJson> },
     Release { left: Box<FormulaJson>, right: Box<FormulaJson> },
+    Since { left: Box<FormulaJson>, right: Box<FormulaJson> },
 }
 
 impl From<FormulaJson> for Formula {
@@ -538,6 +594,13 @@ impl From<FormulaJson> for Formula {
                 Formula::Globally(Box::new((*arg).into()))
             }
             FormulaJson::Finally { arg } => Formula::Finally(Box::new((*arg).into())),
+            FormulaJson::Yesterday { arg } => {
+                Formula::Yesterday(Box::new((*arg).into()))
+            }
+            FormulaJson::Once { arg } => Formula::Once(Box::new((*arg).into())),
+            FormulaJson::Historically { arg } => {
+                Formula::Historically(Box::new((*arg).into()))
+            }
             FormulaJson::Until { left, right } => {
                 Formula::Until(Box::new((*left).into()), Box::new((*right).into()))
             }
@@ -546,6 +609,9 @@ impl From<FormulaJson> for Formula {
             }
             FormulaJson::Release { left, right } => {
                 Formula::Release(Box::new((*left).into()), Box::new((*right).into()))
+            }
+            FormulaJson::Since { left, right } => {
+                Formula::Since(Box::new((*left).into()), Box::new((*right).into()))
             }
         }
     }
@@ -561,32 +627,42 @@ impl<'de> serde::Deserialize<'de> for Formula {
 pub fn ast_size(f: &Formula) -> usize {
     match f {
         Formula::True | Formula::False | Formula::Atom(_) => 1,
-        Formula::Not(arg) | Formula::Next(arg) | Formula::Globally(arg) | Formula::Finally(arg) => {
-            1 + ast_size(arg)
-        }
+        Formula::Not(arg)
+        | Formula::Next(arg)
+        | Formula::Globally(arg)
+        | Formula::Finally(arg)
+        | Formula::Yesterday(arg)
+        | Formula::Once(arg)
+        | Formula::Historically(arg) => 1 + ast_size(arg),
         Formula::And(l, r)
         | Formula::Or(l, r)
         | Formula::Implies(l, r)
         | Formula::Iff(l, r)
         | Formula::Until(l, r)
         | Formula::Weak(l, r)
-        | Formula::Release(l, r) => 1 + ast_size(l) + ast_size(r),
+        | Formula::Release(l, r)
+        | Formula::Since(l, r) => 1 + ast_size(l) + ast_size(r),
     }
 }
 
 fn children(f: &Formula) -> Vec<&Formula> {
     match f {
         Formula::True | Formula::False | Formula::Atom(_) => vec![],
-        Formula::Not(arg) | Formula::Next(arg) | Formula::Globally(arg) | Formula::Finally(arg) => {
-            vec![arg]
-        }
+        Formula::Not(arg)
+        | Formula::Next(arg)
+        | Formula::Globally(arg)
+        | Formula::Finally(arg)
+        | Formula::Yesterday(arg)
+        | Formula::Once(arg)
+        | Formula::Historically(arg) => vec![arg],
         Formula::And(l, r)
         | Formula::Or(l, r)
         | Formula::Implies(l, r)
         | Formula::Iff(l, r)
         | Formula::Until(l, r)
         | Formula::Weak(l, r)
-        | Formula::Release(l, r) => vec![l, r],
+        | Formula::Release(l, r)
+        | Formula::Since(l, r) => vec![l, r],
     }
 }
 
@@ -640,6 +716,19 @@ pub fn eval_at(f: &Formula, trace: &Trace, i: usize) -> bool {
         Formula::Next(arg) => i + 1 < n && eval_at(arg, trace, i + 1),
         Formula::Globally(arg) => (i..n).all(|j| eval_at(arg, trace, j)),
         Formula::Finally(arg) => (i..n).any(|j| eval_at(arg, trace, j)),
+        // Past operators look back over concrete history — the consumed
+        // prefix is finite, so they evaluate directly, no window needed.
+        // Positions ≥ n are part of "the past" when i is out of range
+        // (vacuous quantifiers can hold there), matching the TS engine.
+        Formula::Yesterday(arg) => i > 0 && eval_at(arg, trace, i - 1),
+        Formula::Once(arg) => (0..=i).any(|j| eval_at(arg, trace, j)),
+        Formula::Historically(arg) => (0..=i).all(|j| eval_at(arg, trace, j)),
+        Formula::Since(l, r) => {
+            // Exists j ≤ i where r held, and l held at every k in (j, i].
+            (0..=i).any(|j| {
+                eval_at(r, trace, j) && (j + 1..=i).all(|k| eval_at(l, trace, k))
+            })
+        }
         Formula::Until(l, r) => {
             for j in i..n {
                 if eval_at(r, trace, j) {
@@ -673,13 +762,20 @@ pub fn satisfies_trace(f: &Formula, trace: &Trace) -> bool {
 // ---------------------------------------------------------------------------
 
 /// The atoms holding at position `i` of an ultimately-periodic run.
+///
+/// No cycle: a finite prefix is read as stuttering its last state
+/// (the dead-end convention), and an empty run as the empty state.
 pub fn periodic_atoms(pt: &PeriodicTrace, i: usize) -> &State {
     if i < pt.prefix.len() {
         &pt.prefix[i]
+    } else if pt.cycle.is_empty() {
+        pt.prefix.last().unwrap_or(&EMPTY_STATE)
     } else {
         &pt.cycle[(i - pt.prefix.len()) % pt.cycle.len()]
     }
 }
+
+static EMPTY_STATE: State = State::new();
 
 /// Evaluate at position `i` of an infinite ultimately-periodic run.
 /// Positions beyond `prefix.len() + cycle.len()` repeat, so checking one
@@ -703,6 +799,14 @@ pub fn eval_periodic_at(f: &Formula, pt: &PeriodicTrace, i: usize) -> bool {
         Formula::Next(arg) => eval_periodic_at(arg, pt, i + 1),
         Formula::Globally(arg) => (i..end).all(|j| eval_periodic_at(arg, pt, j)),
         Formula::Finally(arg) => (i..end).any(|j| eval_periodic_at(arg, pt, j)),
+        // Past operators look back over concrete history (indices 0..=i) —
+        // finite even on an infinite run, so no period/window reasoning.
+        Formula::Yesterday(arg) => i > 0 && eval_periodic_at(arg, pt, i - 1),
+        Formula::Once(arg) => (0..=i).any(|j| eval_periodic_at(arg, pt, j)),
+        Formula::Historically(arg) => (0..=i).all(|j| eval_periodic_at(arg, pt, j)),
+        Formula::Since(l, r) => (0..=i).any(|j| {
+            eval_periodic_at(r, pt, j) && (j + 1..=i).all(|k| eval_periodic_at(l, pt, k))
+        }),
         Formula::Until(l, r) => {
             for j in i..end {
                 if eval_periodic_at(r, pt, j) {
