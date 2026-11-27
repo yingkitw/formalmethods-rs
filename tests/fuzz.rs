@@ -172,6 +172,25 @@ mod shrink_tests {
             .any(|(i, s)| s.contains("a") && !shrunk[i..].iter().any(|t| t.contains("b")));
         assert!(has_bad);
     }
+
+    #[test]
+    fn formula_aware_shrink_drops_unread_atoms_for_free() {
+        // noise atoms the formula can't observe are stripped before the
+        // delta-debug even starts — same violation, cleaner witness
+        let f = parse_ltl("G (a -> F b)").unwrap();
+        let noisy = trace(&[
+            &["a", "noise1", "noise2"],
+            &["noise3"],
+            &["a", "noise1"],
+        ]);
+        let (shrunk, _) = formalmethods::shrink_trace_for(&noisy, &f);
+        assert!(!formalmethods::satisfies_trace(&f, &shrunk));
+        for s in &shrunk {
+            for a in s {
+                assert!(a == "a" || a == "b", "unread atom {a} survived");
+            }
+        }
+    }
 }
 
 mod mulberry32_tests {

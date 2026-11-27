@@ -268,6 +268,9 @@ fn children_of(f: &Formula) -> Vec<&Formula> {
     }
 }
 
+/// A binary `Formula` variant seen as its 2-tuple constructor.
+type BinaryCtor = fn(Box<Formula>, Box<Formula>) -> Formula;
+
 fn with_child(f: &Formula, i: usize, c: Formula) -> Formula {
     match f {
         Formula::True | Formula::False | Formula::Atom(_) => f.clone(),
@@ -278,29 +281,25 @@ fn with_child(f: &Formula, i: usize, c: Formula) -> Formula {
         Formula::Yesterday(_) => Formula::Yesterday(Box::new(c)),
         Formula::Once(_) => Formula::Once(Box::new(c)),
         Formula::Historically(_) => Formula::Historically(Box::new(c)),
-        Formula::And(l, r) => {
-            if i == 0 { Formula::And(Box::new(c), r.clone()) } else { Formula::And(l.clone(), Box::new(c)) }
-        }
-        Formula::Or(l, r) => {
-            if i == 0 { Formula::Or(Box::new(c), r.clone()) } else { Formula::Or(l.clone(), Box::new(c)) }
-        }
-        Formula::Implies(l, r) => {
-            if i == 0 { Formula::Implies(Box::new(c), r.clone()) } else { Formula::Implies(l.clone(), Box::new(c)) }
-        }
-        Formula::Iff(l, r) => {
-            if i == 0 { Formula::Iff(Box::new(c), r.clone()) } else { Formula::Iff(l.clone(), Box::new(c)) }
-        }
-        Formula::Until(l, r) => {
-            if i == 0 { Formula::Until(Box::new(c), r.clone()) } else { Formula::Until(l.clone(), Box::new(c)) }
-        }
-        Formula::Weak(l, r) => {
-            if i == 0 { Formula::Weak(Box::new(c), r.clone()) } else { Formula::Weak(l.clone(), Box::new(c)) }
-        }
-        Formula::Release(l, r) => {
-            if i == 0 { Formula::Release(Box::new(c), r.clone()) } else { Formula::Release(l.clone(), Box::new(c)) }
-        }
-        Formula::Since(l, r) => {
-            if i == 0 { Formula::Since(Box::new(c), r.clone()) } else { Formula::Since(l.clone(), Box::new(c)) }
+        // Every binary variant is a 2-tuple constructor — pick it, then
+        // rebuild with `c` in slot `i`.
+        _ => {
+            let (ctor, l, r): (BinaryCtor, &Formula, &Formula) = match f {
+                Formula::And(l, r) => (Formula::And, l, r),
+                Formula::Or(l, r) => (Formula::Or, l, r),
+                Formula::Implies(l, r) => (Formula::Implies, l, r),
+                Formula::Iff(l, r) => (Formula::Iff, l, r),
+                Formula::Until(l, r) => (Formula::Until, l, r),
+                Formula::Weak(l, r) => (Formula::Weak, l, r),
+                Formula::Release(l, r) => (Formula::Release, l, r),
+                Formula::Since(l, r) => (Formula::Since, l, r),
+                _ => unreachable!("children_of only yields unary/binary nodes"),
+            };
+            if i == 0 {
+                ctor(Box::new(c), Box::new(r.clone()))
+            } else {
+                ctor(Box::new(l.clone()), Box::new(c))
+            }
         }
     }
 }

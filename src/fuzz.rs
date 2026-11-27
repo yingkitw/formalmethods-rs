@@ -149,6 +149,32 @@ pub fn shrink_trace(trace: &Trace, formula: &Formula) -> (Trace, usize) {
     (current, steps)
 }
 
+/// Formula-aware shrinking: [`shrink_trace`] plus a provably-safe first
+/// pass that drops every atom the formula never mentions.
+///
+/// Atoms absent from `formula` are unobservable — removing them cannot
+/// change `eval_at`, so the purge preserves any violation *for free*.
+/// What remains is then delta-debugged as usual, so the result is at
+/// least as small and strictly more readable: counterexamples over wide
+/// alphabets lose their noise atoms immediately.
+///
+/// Compose rather than reimplement: `falsify` deliberately stays
+/// semantics-blind (TS parity); callers wanting the tighter shrink run
+/// this on the returned counterexample.
+pub fn shrink_trace_for(trace: &Trace, formula: &Formula) -> (Trace, usize) {
+    let readable = crate::ltl::collect_atoms(formula);
+    let stripped: Trace = trace
+        .iter()
+        .map(|s| {
+            s.iter()
+                .filter(|a| readable.contains(*a))
+                .cloned()
+                .collect()
+        })
+        .collect();
+    shrink_trace(&stripped, formula)
+}
+
 /// One bounded mutation of a corpus trace: drop a position, duplicate
 /// one, or toggle an atom.
 fn mutate_trace(trace: &Trace, atoms: &[String], rng: &mut Mulberry32, length: usize) -> Trace {

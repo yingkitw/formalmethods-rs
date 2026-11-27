@@ -123,6 +123,12 @@ entries — drop a position, duplicate one, or toggle an atom. Novelty
 seeking over the 2^|atoms| space; the result reports `coverage`
 (`states_seen`, `states_possible`, `corpus_size`, corpus capped at 128).
 
+`shrink_trace_for(&trace, &formula)` is the formula-aware variant:
+atoms the formula never mentions are unobservable, so they're stripped
+unconditionally before delta-debugging — the same violation, strictly
+more readable. `falsify` itself stays semantics-blind (TS parity);
+compose it on the returned counterexample.
+
 ## Runtime monitoring (`Monitor`)
 
 `Monitor::new(&formula)` then `feed(&state)` consumes a stream one state at

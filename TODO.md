@@ -71,6 +71,11 @@
       verbatim via `SKILLS_GUIDE` (`include_str!`); last tool-surface gap
       vs the TS MCP server closed. `approaches.ts` deliberately skipped —
       it's website lab content, not engine.
+- [x] Output parity polish — `check_ltl` emits the empty-trace `notes`
+      warning; `falsify_property` output trimmed to the exact TS shape
+- [x] `shrink_trace_for` — formula-aware shrinking (strip atoms the
+      formula can't observe — provably safe — then delta-debug);
+      extension-only, `falsify` stays semantics-blind
 
 ## Next
 
@@ -78,7 +83,9 @@
 
 ## Brainstorming (from competitive intel)
 
-- Trace generators with shrinking beyond delta-debugging (e.g. grammar-aware)
+- Formula-aware generation (the other half of grammar-aware: bias trace
+  atoms toward the formula's vocabulary; the shrink side shipped as
+  `shrink_trace_for`)
 - SAT/SMT-backed bounded checking for bigger models (e.g. via `varisat`)
 - `approaches`-style worked examples (per-language onboarding: native code
   → artifact → LTL mapping); TS ships it as website content — a Rust

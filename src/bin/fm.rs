@@ -169,6 +169,11 @@ fn main() -> ExitCode {
                     "formula": print_ltl(&formula),
                     "satisfies": satisfies_trace(&formula, &trace),
                     "truth_table": truth_table(&formula, &trace),
+                    "notes": if trace.is_empty() {
+                        json!(["empty trace — universal properties (G, R) hold vacuously on zero data"])
+                    } else {
+                        json!([])
+                    },
                 }))
             }
             "model_check" => {
@@ -350,7 +355,6 @@ fn main() -> ExitCode {
                     "iterations": result.iterations,
                     "trace_length": result.length,
                     "seed": result.seed,
-                    "guided": result.coverage.is_some(),
                     "shrink_steps": result.shrink_steps.unwrap_or(0),
                     "counterexample": result.counterexample,
                     "original": result.original,
