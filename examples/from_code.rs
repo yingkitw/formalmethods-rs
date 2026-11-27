@@ -21,7 +21,7 @@ use formalmethods::{
 // --- the system under test, as it is really written ---------------------
 
 #[derive(Clone, Copy)]
-enum Vend {
+enum Machine {
     Idle,
     Paid,
     Vend,
@@ -31,43 +31,43 @@ enum Vend {
 /// checker gets to explore.
 const EVENTS: [&str; 2] = ["pay", "noop"];
 
-impl Vend {
-    const ALL: [Vend; 3] = [Vend::Idle, Vend::Paid, Vend::Vend];
+impl Machine {
+    const ALL: [Machine; 3] = [Machine::Idle, Machine::Paid, Machine::Vend];
 
     /// One transition step: coin in → always eventually dispenses.
-    fn step(self, event: &str) -> Vend {
+    fn step(self, event: &str) -> Machine {
         match (self, event) {
-            (Vend::Idle, "pay") => Vend::Paid,
-            (Vend::Paid, _) => Vend::Vend,
-            _ => Vend::Idle,
+            (Machine::Idle, "pay") => Machine::Paid,
+            (Machine::Paid, _) => Machine::Vend,
+            _ => Machine::Idle,
         }
     }
 
     /// Buggy variant: `paid` on a quiet step returns to `idle` — the coin
     /// is eaten. One line of code changes the whole reachable graph.
-    fn step_buggy(self, event: &str) -> Vend {
+    fn step_buggy(self, event: &str) -> Machine {
         match (self, event) {
-            (Vend::Idle, "pay") => Vend::Paid,
-            (Vend::Paid, "noop") => Vend::Idle,
-            (Vend::Paid, _) => Vend::Vend,
-            _ => Vend::Idle,
+            (Machine::Idle, "pay") => Machine::Paid,
+            (Machine::Paid, "noop") => Machine::Idle,
+            (Machine::Paid, _) => Machine::Vend,
+            _ => Machine::Idle,
         }
     }
 
     fn name(self) -> &'static str {
         match self {
-            Vend::Idle => "idle",
-            Vend::Paid => "paid",
-            Vend::Vend => "vend",
+            Machine::Idle => "idle",
+            Machine::Paid => "paid",
+            Machine::Vend => "vend",
         }
     }
 
     /// The observable atoms of a state — what a log line would record.
     fn atoms(self) -> BTreeSet<String> {
         let a: &[&str] = match self {
-            Vend::Idle => &["ready"],
-            Vend::Paid => &["coin"],
-            Vend::Vend => &["dispense"],
+            Machine::Idle => &["ready"],
+            Machine::Paid => &["coin"],
+            Machine::Vend => &["dispense"],
         };
         a.iter().map(|s| s.to_string()).collect()
     }
@@ -75,8 +75,8 @@ impl Vend {
 
 /// Lift a state machine into a Kripke structure: enum states → nodes,
 /// (state, event) outcomes → edges.
-fn lift(step: fn(Vend, &str) -> Vend) -> KripkeSpec {
-    let states = Vend::ALL
+fn lift(step: fn(Machine, &str) -> Machine) -> KripkeSpec {
+    let states = Machine::ALL
         .iter()
         .map(|&s| KripkeState {
             id: s.name().into(),
@@ -103,13 +103,13 @@ fn main() {
     let property = parse_ltl("G (coin -> F dispense)").unwrap();
 
     // The healthy machine: every inserted coin is eventually answered.
-    let ok = lift(Vend::step);
+    let ok = lift(Machine::step);
     let r = model_check(&property, &ok, &ModelCheckOptions::default());
     assert_eq!(r.verdict, Verdict::Holds);
     println!("lifted model:   design verdict = {} ({} lassos)", r.verdict, r.checked_lassos);
 
     // The coin-eating variant: the code changed, so the model did too.
-    let buggy = lift(Vend::step_buggy);
+    let buggy = lift(Machine::step_buggy);
     let r = model_check(&property, &buggy, &ModelCheckOptions::default());
     assert_eq!(r.verdict, Verdict::Violated);
     let ce = &r.counterexamples[0];
